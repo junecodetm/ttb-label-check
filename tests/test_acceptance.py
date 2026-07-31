@@ -8,6 +8,19 @@ from labelcheck.rules.net_contents import verify as verify_net_contents
 from labelcheck.rules.warning import verify as verify_warning
 from labelcheck.rules.warning import verify_prefix
 
+VERIFICATION_FIELDS = (
+    "brand_name",
+    "class_type",
+    "alcohol_content",
+    "net_contents",
+    "bottler",
+    "origin_country",
+    "government_warning",
+    "government_warning_prefix",
+    "government_warning_bold",
+    "government_warning_type_size",
+)
+
 
 def test_stones_throw_apostrophe_and_case_variation_passes() -> None:
     result = verify_brand(extracted="STONE'S THROW", expected="Stone's Throw")
@@ -110,23 +123,37 @@ def test_text_block_remains_a_dependency_free_future_ocr_contract() -> None:
     assert block.bbox[2] == (10.0, 4.0)
 
 
-def test_report_rollup_never_hides_an_unevaluated_check_as_pass() -> None:
+def test_report_rollup_passes_evaluated_checks_and_discloses_unevaluated_names() -> None:
+    passing = FieldResult(Status.PASS, "a", "a", 100.0, None, "Matched.")
+    unevaluated = FieldResult(Status.NOT_EVALUATED, "b", None, None, None, "Could not evaluate.")
+    review = FieldResult(Status.REVIEW, "c", "near", 80.0, None, "Needs review.")
+    results = dict.fromkeys(VERIFICATION_FIELDS, passing)
+    results["origin_country"] = unevaluated
+
+    report = LabelReport(results)
+
+    assert report.overall_status is Status.PASS
+    assert report.unevaluated_checks == ("origin_country",)
+
+    results["class_type"] = review
+    assert LabelReport(results).overall_status is Status.REVIEW
+
+
+def test_report_rollup_is_not_evaluated_when_no_check_ran() -> None:
+    unevaluated = FieldResult(Status.NOT_EVALUATED, "b", None, None, None, "Could not evaluate.")
+
+    assert LabelReport({}).overall_status is Status.NOT_EVALUATED
+    assert LabelReport({"origin": unevaluated}).overall_status is Status.NOT_EVALUATED
+
+
+def test_report_rollup_failure_wins_over_unevaluated_checks() -> None:
     passing = FieldResult(Status.PASS, "a", "a", 100.0, None, "Matched.")
     unevaluated = FieldResult(Status.NOT_EVALUATED, "b", None, None, None, "Could not evaluate.")
     review = FieldResult(Status.REVIEW, "c", "near", 80.0, None, "Needs review.")
     failure = FieldResult(Status.FAIL, "d", "wrong", 0.0, None, "Mismatch.")
+    results = dict.fromkeys(VERIFICATION_FIELDS, passing)
+    results["origin_country"] = unevaluated
+    results["class_type"] = review
+    results["government_warning"] = failure
 
-    assert LabelReport({}).overall_status is Status.NOT_EVALUATED
-    assert LabelReport({"brand": passing}).overall_status is Status.PASS
-    assert (
-        LabelReport({"brand": passing, "origin": unevaluated}).overall_status
-        is Status.NOT_EVALUATED
-    )
-    assert (
-        LabelReport({"brand": passing, "origin": unevaluated, "class": review}).overall_status
-        is Status.REVIEW
-    )
-    assert (
-        LabelReport({"brand": passing, "class": review, "warning": failure}).overall_status
-        is Status.FAIL
-    )
+    assert LabelReport(results).overall_status is Status.FAIL

@@ -57,6 +57,12 @@ def test_clean_control_fixture_verifies_against_matching_application(
     assert report.results["origin_country"].status is Status.NOT_EVALUATED
     assert report.results["government_warning_bold"].status is Status.NOT_EVALUATED
     assert report.results["government_warning_type_size"].status is Status.NOT_EVALUATED
+    assert report.overall_status is Status.PASS
+    assert report.unevaluated_checks == (
+        "origin_country",
+        "government_warning_bold",
+        "government_warning_type_size",
+    )
 
 
 @pytest.mark.slow

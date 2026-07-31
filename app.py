@@ -157,6 +157,20 @@ def _render_status(status: Status, *, overall: bool = False) -> None:
         st.markdown(_NEUTRAL_FIELD_STATUS, unsafe_allow_html=True)
 
 
+def _render_overall_status(report: LabelReport) -> None:
+    _render_status(report.overall_status, overall=True)
+    count = len(_checks_that_could_not_run(report))
+    if count:
+        noun = "check" if count == 1 else "checks"
+        st.info(f"{count} {noun} could not be run — see below.")
+
+
+def _checks_that_could_not_run(report: LabelReport) -> tuple[str, ...]:
+    explicitly_unevaluated = report.unevaluated_checks
+    missing = tuple(field_name for field_name in _FIELD_LABELS if field_name not in report.results)
+    return explicitly_unevaluated + missing
+
+
 def _render_field(field_name: str, result: FieldResult) -> None:
     label = _friendly_field_label(field_name)
     with st.container(border=True):
@@ -193,13 +207,25 @@ def _report_to_csv(report: LabelReport) -> bytes:
                 _user_detail(field_name, result) or _FIELD_STATUS_COPY[result.status],
             ]
         )
+    for field_name in _FIELD_LABELS:
+        if field_name in report.results:
+            continue
+        writer.writerow(
+            [
+                _friendly_field_label(field_name),
+                _STATUS_LABELS[Status.NOT_EVALUATED],
+                _display_application_value(None),
+                _display_read_value(None),
+                "This check could not be run.",
+            ]
+        )
     return output.getvalue().encode("utf-8")
 
 
 def _render_report(report: LabelReport, elapsed_seconds: float) -> None:
     st.subheader("3. Review the results")
     st.caption(f"Checked in {elapsed_seconds:.1f} seconds.")
-    _render_status(report.overall_status, overall=True)
+    _render_overall_status(report)
     st.write("Review each crop before making your decision.")
 
     for field_name, result in report.results.items():
@@ -338,8 +364,9 @@ def _render_saved_batch_results() -> None:
     )
     selected = reviewable[selected_index]
     st.subheader(f"Evidence for {selected.filename}")
-    st.write("Review every crop before making your decision.")
     if selected.report is not None:
+        _render_overall_status(selected.report)
+        st.write("Review every crop before making your decision.")
         for field_name, result in selected.report.results.items():
             _render_field(field_name, result)
 

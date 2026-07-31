@@ -75,15 +75,26 @@ def _label_report(
     extracted_brand: str = "Read brand",
     confidence: float = 0.91,
     crop: object = b"crop",
+    unevaluated_fields: frozenset[str] = frozenset(),
 ) -> LabelReport:
     results = {
         field_name: FieldResult(
-            status=status,
+            status=(
+                Status.NOT_EVALUATED if field_name in unevaluated_fields else status
+            ),
             expected=expected_brand if field_name == "brand_name" else f"Expected {field_name}",
-            extracted=extracted_brand if field_name == "brand_name" else f"Read {field_name}",
-            confidence=confidence,
+            extracted=(
+                None
+                if field_name in unevaluated_fields
+                else extracted_brand if field_name == "brand_name" else f"Read {field_name}"
+            ),
+            confidence=None if field_name in unevaluated_fields else confidence,
             crop=crop,
-            detail="Deterministic fake verification result.",
+            detail=(
+                "This check could not be run."
+                if field_name in unevaluated_fields
+                else "Deterministic fake verification result."
+            ),
         )
         for field_name in REPORT_FIELDS
     }
@@ -206,6 +217,29 @@ def test_twenty_image_batch_accounts_for_every_input_and_orders_triage_queue() -
     assert 1 < len(worker_names) <= 8
 
 
+def test_results_sort_fail_review_not_evaluated_then_pass_with_errors_as_failures() -> None:
+    batch = _batch_module()
+    results = [
+        batch.BatchResult(filename="pass.png", report=_label_report(Status.PASS)),
+        batch.BatchResult(
+            filename="nothing-ran.png", report=_label_report(Status.NOT_EVALUATED)
+        ),
+        batch.BatchResult(filename="review.png", report=_label_report(Status.REVIEW)),
+        batch.BatchResult(filename="missing.png", error="Image not uploaded."),
+        batch.BatchResult(filename="fail.png", report=_label_report(Status.FAIL)),
+    ]
+
+    ordered = batch.sort_results(results)
+
+    assert [result.filename for result in ordered] == [
+        "missing.png",
+        "fail.png",
+        "review.png",
+        "nothing-ran.png",
+        "pass.png",
+    ]
+
+
 def test_batch_entry_is_separate_while_single_label_stays_the_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -250,6 +284,9 @@ def test_batch_submission_renders_progress_table_export_and_crop_evidence(
             extracted_brand="Brand 1",
             confidence=99.0,
             crop=np.zeros((4, 4, 3), dtype=np.uint8),
+            unevaluated_fields=frozenset(
+                {"government_warning_bold", "government_warning_type_size"}
+            ),
         )
 
     monkeypatch.setattr(labelcheck.pipeline, "verify", fake_verify)
@@ -274,11 +311,60 @@ def test_batch_submission_renders_progress_table_export_and_crop_evidence(
     frame = app.dataframe[0].value
     assert frame.loc[0, "Filename"] == "label.png"
     assert frame.loc[0, "Overall result"] == "PASS"
+    assert frame.loc[0, "Checks that could not be run"] == (
+        "2 checks could not be run — Government warning bold text; "
+        "Government warning type size"
+    )
     assert frame.loc[0, "Brand name — we read this as"] == "Brand 1"
     assert app.download_button[0].label == "Download all results as CSV"
     assert any("Completed 1 of 1 labels" in message.value for message in app.success)
+    assert any(
+        message.value == "2 checks could not be run — see below." for message in app.info
+    )
     assert "Evidence for label.png" in [subheader.value for subheader in app.subheader]
     assert len(app.image) == len(REPORT_FIELDS)
+
+
+def test_single_label_passing_overall_discloses_checks_that_could_not_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(labelcheck.ocr, "warm", lambda: object())
+
+    def fake_verify(image_bytes: bytes, application: object) -> LabelReport:
+        assert image_bytes == b"image"
+        return _label_report(
+            Status.PASS,
+            expected_brand=application.brand_name,
+            crop=np.zeros((4, 4, 3), dtype=np.uint8),
+            unevaluated_fields=frozenset(
+                {"government_warning_bold", "government_warning_type_size"}
+            ),
+        )
+
+    monkeypatch.setattr(labelcheck.pipeline, "verify", fake_verify)
+    app_path = Path(__file__).parents[1] / "app.py"
+    app = AppTest.from_file(str(app_path), default_timeout=10).run()
+    app.get("file_uploader")[0].set_value(("label.png", b"image", "image/png"))
+    values = (
+        "Brand 1",
+        "Whiskey",
+        "45% Alc./Vol. (90 Proof)",
+        "750 mL",
+        "Bottler 1",
+    )
+    for index, value in enumerate(values):
+        app.text_input[index].set_value(value)
+
+    next(button for button in app.button if button.label == "Check label").click().run()
+
+    assert not app.exception
+    assert any(
+        message.value == "Overall: All completed checks match the application."
+        for message in app.success
+    )
+    assert [message.value for message in app.info] == [
+        "2 checks could not be run — see below."
+    ]
 
 
 def test_batch_submission_explains_missing_inputs(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -56,13 +56,23 @@ class LabelReport:
 
     @property
     def overall_status(self) -> Status:
-        """Prevent incomplete checks from being presented as a fully passing report."""
+        """Summarize what ran while leaving skipped checks visible on their own results."""
 
         statuses = {result.status for result in self.results.values()}
         if Status.FAIL in statuses:
             return Status.FAIL
         if Status.REVIEW in statuses:
             return Status.REVIEW
-        if Status.NOT_EVALUATED in statuses or not statuses:
-            return Status.NOT_EVALUATED
-        return Status.PASS
+        if Status.PASS in statuses:
+            return Status.PASS
+        return Status.NOT_EVALUATED
+
+    @property
+    def unevaluated_checks(self) -> tuple[str, ...]:
+        """Expose skipped check names so aggregate displays cannot hide them."""
+
+        return tuple(
+            name
+            for name, result in self.results.items()
+            if result.status is Status.NOT_EVALUATED
+        )

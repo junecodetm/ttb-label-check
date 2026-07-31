@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import pandas as pd
 
 from labelcheck.batch import VERIFICATION_FIELDS, BatchResult, sort_results
+from labelcheck.models import LabelReport
 
 REPORT_FIELDS = VERIFICATION_FIELDS
 REPORT_FIELD_LABELS = {
@@ -45,6 +46,7 @@ _STATUS_TEXT = {
 RESULT_COLUMNS = (
     "Filename",
     "Overall result",
+    "Checks that could not be run",
     "Problem",
     *(
         f"{REPORT_FIELD_LABELS[field_name]} — {suffix}"
@@ -71,6 +73,7 @@ def _result_record(result: BatchResult) -> dict[str, object | None]:
     record: dict[str, object | None] = dict.fromkeys(RESULT_COLUMNS)
     record["Filename"] = result.filename
     record["Overall result"] = _STATUS_TEXT[result.status.value]
+    record["Checks that could not be run"] = _unevaluated_disclosure(result.report)
     record["Problem"] = result.error
 
     for field_name in REPORT_FIELDS:
@@ -88,3 +91,28 @@ def _result_record(result: BatchResult) -> dict[str, object | None]:
             if result.application is not None and field_name in _APPLICATION_FIELDS:
                 record[f"{label} — application value"] = getattr(result.application, field_name)
     return record
+
+
+def _unevaluated_disclosure(report: LabelReport | None) -> str:
+    if report is None:
+        field_names = REPORT_FIELDS
+    else:
+        explicitly_unevaluated = report.unevaluated_checks
+        field_names = tuple(
+            field_name
+            for field_name in REPORT_FIELDS
+            if field_name not in report.results or field_name in explicitly_unevaluated
+        ) + tuple(
+            field_name
+            for field_name in explicitly_unevaluated
+            if field_name not in REPORT_FIELD_LABELS
+        )
+    labels = [
+        REPORT_FIELD_LABELS.get(field_name, field_name.replace("_", " ").capitalize())
+        for field_name in field_names
+    ]
+    if not labels:
+        return ""
+    count = len(labels)
+    noun = "check" if count == 1 else "checks"
+    return f"{count} {noun} could not be run — {'; '.join(labels)}"
