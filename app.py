@@ -1,0 +1,293 @@
+from __future__ import annotations
+
+import csv
+import io
+import sys
+from pathlib import Path
+from time import perf_counter
+
+import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+import labelcheck.ocr
+import labelcheck.pipeline
+from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
+
+_FIELD_LABELS = {
+    "brand_name": "Brand name",
+    "class_type": "Class or type",
+    "alcohol_content": "Alcohol content",
+    "net_contents": "Net contents",
+    "bottler": "Bottler or producer",
+    "origin_country": "Country of origin",
+    "government_warning": "Government warning wording",
+    "government_warning_prefix": "Government warning heading",
+    "government_warning_bold": "Government warning bold text",
+    "government_warning_type_size": "Government warning type size",
+}
+
+_STATUS_LABELS = {
+    Status.PASS: "Matches",
+    Status.REVIEW: "Close — worth checking",
+    Status.FAIL: "Does not match",
+    Status.NOT_EVALUATED: "Not checked",
+}
+
+_FIELD_STATUS_COPY = {
+    Status.PASS: "Matches the application.",
+    Status.REVIEW: "Close — worth checking. Compare the crop with the two values.",
+    Status.FAIL: "Does not match the application. Review the crop and decide the next step.",
+    Status.NOT_EVALUATED: "Not checked. See the reason below.",
+}
+
+_OVERALL_STATUS_COPY = {
+    Status.PASS: "Overall: All completed checks match the application.",
+    Status.REVIEW: ("Overall: Close — worth checking. At least one check needs your judgment."),
+    Status.FAIL: "Overall: At least one value does not match the application.",
+    Status.NOT_EVALUATED: "Overall: Some or all checks were not completed.",
+}
+
+_UNEVALUATED_EXPLANATIONS = {
+    "government_warning_bold": (
+        "This was not checked because the reader cannot confirm bold text from the "
+        "available evidence."
+    ),
+    "government_warning_type_size": (
+        "This was not checked because the image does not provide the physical "
+        "measurements needed to confirm type size."
+    ),
+}
+
+_WARNING_DIFF_FIELDS = {
+    "government_warning",
+    "government_warning_prefix",
+}
+
+_STATIC_STYLES = """
+<style>
+    .stButton > button,
+    .stDownloadButton > button,
+    div[data-testid="stFormSubmitButton"] > button {
+        min-height: 3.25rem;
+        font-size: 1.08rem;
+        font-weight: 700;
+    }
+    div[data-testid="stFileUploaderDropzone"] {
+        min-height: 8rem;
+        padding: 1.25rem;
+    }
+    div[data-testid="stForm"] {
+        padding: 1.5rem;
+    }
+    .status-neutral {
+        background: #eceff1;
+        border-left: 0.35rem solid #687078;
+        border-radius: 0.35rem;
+        color: #202124;
+        margin: 0.5rem 0;
+        padding: 0.85rem 1rem;
+    }
+</style>
+"""
+
+_NEUTRAL_FIELD_STATUS = """
+<div class="status-neutral" role="status"><strong>Not checked.</strong> See the reason below.</div>
+"""
+
+_NEUTRAL_OVERALL_STATUS = """
+<div class="status-neutral" role="status">
+    <strong>Overall: Some or all checks were not completed.</strong>
+</div>
+"""
+
+
+@st.cache_resource(show_spinner=False)
+def _warm_ocr_engine() -> object:
+    """Keep model startup out of each label check and each Streamlit rerun."""
+
+    return labelcheck.ocr.warm()
+
+
+def _friendly_field_label(field_name: str) -> str:
+    return _FIELD_LABELS.get(field_name, field_name.replace("_", " ").capitalize())
+
+
+def _display_application_value(value: str | None) -> str:
+    return value or "Not provided"
+
+
+def _display_read_value(value: str | None) -> str:
+    return value or "Nothing readable was found"
+
+
+def _user_detail(field_name: str, result: FieldResult) -> str | None:
+    if result.status is Status.NOT_EVALUATED:
+        return _UNEVALUATED_EXPLANATIONS.get(field_name, result.detail)
+    if field_name in _WARNING_DIFF_FIELDS and result.status is Status.FAIL:
+        return result.detail
+    return None
+
+
+def _render_status(status: Status, *, overall: bool = False) -> None:
+    copy = _OVERALL_STATUS_COPY[status] if overall else _FIELD_STATUS_COPY[status]
+    if status is Status.PASS:
+        st.success(copy)
+    elif status is Status.REVIEW:
+        st.warning(copy)
+    elif status is Status.FAIL:
+        st.error(copy)
+    elif overall:
+        st.markdown(_NEUTRAL_OVERALL_STATUS, unsafe_allow_html=True)
+    else:
+        st.markdown(_NEUTRAL_FIELD_STATUS, unsafe_allow_html=True)
+
+
+def _render_field(field_name: str, result: FieldResult) -> None:
+    label = _friendly_field_label(field_name)
+    with st.container(border=True):
+        st.subheader(label)
+        crop_column, value_column = st.columns([2, 3], gap="large", vertical_alignment="top")
+        with crop_column:
+            st.image(
+                result.crop,
+                caption=f"Label crop for {label.lower()}",
+                width="stretch",
+            )
+        with value_column:
+            st.markdown("**Application value**")
+            st.write(_display_application_value(result.expected))
+            st.markdown("**We read this as**")
+            st.write(_display_read_value(result.extracted))
+            _render_status(result.status)
+            detail = _user_detail(field_name, result)
+            if detail:
+                st.write(detail)
+
+
+def _report_to_csv(report: LabelReport) -> bytes:
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(["Check", "Status", "Application value", "Read value", "Detail"])
+    for field_name, result in report.results.items():
+        writer.writerow(
+            [
+                _friendly_field_label(field_name),
+                _STATUS_LABELS[result.status],
+                _display_application_value(result.expected),
+                _display_read_value(result.extracted),
+                _user_detail(field_name, result) or _FIELD_STATUS_COPY[result.status],
+            ]
+        )
+    return output.getvalue().encode("utf-8")
+
+
+def _render_report(report: LabelReport, elapsed_seconds: float) -> None:
+    st.subheader("3. Review the results")
+    st.caption(f"Checked in {elapsed_seconds:.1f} seconds.")
+    _render_status(report.overall_status, overall=True)
+    st.write("Review each crop before making your decision.")
+
+    for field_name, result in report.results.items():
+        _render_field(field_name, result)
+
+    st.download_button(
+        "Download results as CSV",
+        data=_report_to_csv(report),
+        file_name="label-check-results.csv",
+        mime="text/csv",
+        on_click="ignore",
+        width="stretch",
+    )
+
+
+def main() -> None:
+    """Present one accessible path while the domain package owns every check."""
+
+    st.set_page_config(
+        page_title="Alcohol Label Check",
+        page_icon="🔎",
+        layout="centered",
+        initial_sidebar_state="collapsed",
+    )
+    st.markdown(_STATIC_STYLES, unsafe_allow_html=True)
+    st.title("Check an alcohol label")
+    st.write(
+        "Upload one label and enter the application values. We will show what matches "
+        "and what needs your judgment."
+    )
+
+    try:
+        _warm_ocr_engine()
+    except Exception:
+        st.error("The label reader could not start. Reload the page and try again.")
+        return
+
+    with st.form("single_label_check"):
+        st.subheader("1. Upload the label")
+        uploaded_file = st.file_uploader(
+            "PNG or JPEG label image",
+            type=["png", "jpg", "jpeg"],
+            help="For the clearest result, use a straight-on photo in good light.",
+        )
+
+        st.subheader("2. Enter the application values")
+        brand_name = st.text_input("Brand name (required)")
+        class_type = st.text_input("Class or type (required)")
+        alcohol_content = st.text_input("Alcohol content (required)")
+        net_contents = st.text_input("Net contents (required)")
+        bottler = st.text_input("Bottler or producer (required)")
+        origin_country = st.text_input("Country of origin (optional)")
+        submitted = st.form_submit_button("Check label", type="primary", width="stretch")
+
+    if not submitted:
+        return
+    if uploaded_file is None:
+        st.error("Upload a PNG or JPEG label image, then choose Check label again.")
+        return
+    if not all((brand_name, class_type, alcohol_content, net_contents, bottler)):
+        st.error(
+            "Enter all five required application values, then choose Check label again. "
+            "Country of origin can stay blank."
+        )
+        return
+
+    try:
+        image_bytes = uploaded_file.getvalue()
+    except Exception:
+        st.error("We could not open this image. Choose another PNG or JPEG and try again.")
+        return
+    if not image_bytes:
+        st.error("This image is empty. Choose a different PNG or JPEG and try again.")
+        return
+
+    application = ApplicationRecord(
+        brand_name=brand_name,
+        class_type=class_type,
+        alcohol_content=alcohol_content,
+        net_contents=net_contents,
+        bottler=bottler,
+        origin_country=origin_country or None,
+    )
+
+    try:
+        started_at = perf_counter()
+        report = labelcheck.pipeline.verify(image_bytes, application)
+        elapsed_seconds = perf_counter() - started_at
+    except Exception:
+        st.error(
+            "We could not read this label. Try a clear, straight-on PNG or JPEG in better light."
+        )
+        return
+
+    try:
+        _render_report(report, elapsed_seconds)
+    except Exception:
+        st.error(
+            "The label was checked, but the results could not be displayed. Reload the "
+            "page and try again."
+        )
+
+
+if __name__ == "__main__":
+    main()
