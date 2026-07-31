@@ -1,0 +1,26 @@
+# Statutory health warning — 27 CFR 16.21 "Mandatory label information."
+#
+# THIS FILE IS THE PROVENANCE ANCHOR FOR THE MOST IMPORTANT CONSTANT IN THE CODEBASE.
+# src/labelcheck/config.py::GOVERNMENT_WARNING must equal the payload below byte for byte.
+# tests/test_warning_provenance.py enforces that mechanically, so the constant cannot
+# silently drift from the statute.
+#
+# Retrieved: 2026-07-31
+# Verified against two independent authoritative sources, which agree character for character:
+#   1. U.S. GPO / govinfo, CFR 2024 annual edition, Title 27 Vol. 1, § 16.21
+#      https://www.govinfo.gov/content/pkg/CFR-2024-title27-vol1/xml/CFR-2024-title27-vol1-sec16-21.xml
+#   2. eCFR versioner API, Title 27 Part 16 § 16.21
+#      https://www.ecfr.gov/api/versioner/v1/full/2025-01-01/title-27.xml?part=16&section=16.21
+#
+# (The eCFR HTML UI at ecfr.gov/current/... 302-redirects to a bot-interstitial and cannot be
+# fetched programmatically; the versioner API above is the same body of text from the same
+# publisher and was used instead. No secondary or vendor mirror was consulted.)
+#
+# The statute renders the warning as a single unbroken sentence pair. Any line wrapping seen
+# on an actual label is a typographic artifact and must be normalized away before comparison,
+# per .claude/rules/government-warning.md. Case is NEVER normalized away — case is the check.
+#
+# FORMAT: every line beginning with '#' is a comment. The single remaining non-blank line is
+# the statutory payload, exact and complete.
+
+GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.

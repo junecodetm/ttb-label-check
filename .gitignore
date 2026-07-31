@@ -17,3 +17,7 @@ uploads/
 *.jpeg
 *.png
 !tests/fixtures/**
+
+# Benchmark images generated on demand by tools/make_bench_images.py. Regenerable,
+# so they are never committed.
+.bench_images/
