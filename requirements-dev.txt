@@ -1,0 +1,8 @@
+# Development-only. Deliberately not in requirements.txt: HuggingFace Spaces installs
+# that file, and shipping the test runner to the deployment target wastes cold-start
+# budget on the free tier.
+
+-r requirements.txt
+
+pytest>=7.0    # pythonpath ini option requires 7.0+
+ruff

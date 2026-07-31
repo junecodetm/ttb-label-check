@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+.DS_Store
+
+# Personal, per-machine Claude Code config
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Nothing uploaded or processed should ever reach disk (see .claude/rules/testing.md).
+# These entries are a backstop, not the control — the control is the static test.
+uploads/
+*.jpg
+*.jpeg
+*.png
+!tests/fixtures/**

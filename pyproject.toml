@@ -1,0 +1,19 @@
+# Tooling configuration only. The project is run as an app, not installed as a package —
+# pytest resolves `labelcheck` via the pythonpath setting below rather than an editable install.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "slow: end-to-end tests that invoke OCR. Excluded by `pytest -m \"not slow\"`.",
+]
+# Unregistered markers become errors rather than warnings, so a typo'd
+# @pytest.mark.slwo cannot silently land a slow test in the fast suite.
+addopts = "--strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

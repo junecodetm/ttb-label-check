@@ -1,0 +1,15 @@
+# Runtime dependencies. This file is what HuggingFace Spaces installs — keep dev
+# tooling out of it (see requirements-dev.txt).
+#
+# UNPINNED ON PURPOSE. Versions are not written here from memory. Phase 0 of /build
+# installs these, confirms the imports resolve, and then pins exact versions with
+# `pip freeze`. HF Spaces needs reproducible pins; guessed pins are worse than none.
+
+streamlit
+rapidocr-onnxruntime   # PP-OCR models on ONNX Runtime. If this name fails to resolve,
+                       # try `rapidocr` + `onnxruntime` and record which one worked.
+opencv-python-headless
+rapidfuzz
+pandas
+numpy
+pillow
