@@ -10,6 +10,17 @@ The goal command. Runs the whole project end to end. Resume from a phase with `/
 
 Requirements, the `verify()` contract, and the module layout are in `CLAUDE.md`. Domain rules are in `.claude/rules/` — **read the rule before writing the module it governs**, per the map in `CLAUDE.md`. The path-scoped rules will not auto-load while you are creating a file for the first time. Do not restate those rules here; follow them.
 
+## Current state
+
+Scaffolding is done and committed. No application source exists yet — `src/`, `tests/`, and `app.py` are all still to be written.
+
+Already in place and verified on 2026-07-31:
+
+- **Phase 0 is complete.** `.venv` exists on CPython 3.11.15, every runtime import resolves, RapidOCR instantiates and reads text, and `requirements.txt` is pinned to verified versions. Re-verify the gate; do not redo the work unless `.venv` is missing.
+- Git is initialized with the scaffold committed, so there is a rollback point.
+- `pyproject.toml` configures pytest (`pythonpath = ["src"]`, `--strict-markers`, the `slow` marker) and ruff.
+- A `PostToolUse` hook runs `ruff format` on every Python file you write. It formats only — it does not lint or remove imports.
+
 ## What "done" means
 
 The brief's deliverables:
@@ -25,15 +36,15 @@ Plus the grading preference, which is the tiebreaker on every judgment call: *"A
 
 Each phase has a **gate** — a mechanical check, not a judgment. Do not start a phase until the previous gate is green. If a gate fails, fix it before proceeding; a phase built on a red gate costs more to unwind than to redo.
 
-### Phase 0 — Environment
+Commit at every green gate. Git exists for exactly this.
 
-Create the venv with the commands in `CLAUDE.md` and install `requirements-dev.txt`.
+### Phase 0 — Environment *(already complete)*
 
-`python3.11` is **not** installed on this machine. Use `uv venv --python 3.11`, which is installed and downloads 3.11 on first use. 3.11 is chosen for wheel coverage: onnxruntime and opencv wheels are least likely to exist for 3.13/3.14, and a source build of opencv will cost the session.
+Confirm the gate and move on.
 
-Confirm every import resolves. If `rapidocr-onnxruntime` does not resolve, try `rapidocr` plus `onnxruntime` and record which worked in `requirements.txt`. Then pin exact versions with `.venv/bin/pip freeze` — HF Spaces needs reproducible pins, and the Dockerfile should pin the same Python version as the venv.
+If `.venv` is missing, rebuild with the commands in `CLAUDE.md`. Two gotchas that already cost time once: `python3.11` is not installed on this machine (use `uv venv --python 3.11`), and `uv venv` does not create `.venv/bin/pip` (use `uv pip install` / `uv pip freeze`).
 
-> **Gate:** `.venv/bin/python -c "import cv2, rapidfuzz, pandas, streamlit, numpy, PIL"` exits 0, the OCR engine imports, and `requirements.txt` carries pinned versions.
+> **Gate:** `.venv/bin/python -c "import cv2, rapidfuzz, pandas, streamlit, numpy, PIL"` exits 0, `from rapidocr_onnxruntime import RapidOCR` works, and `requirements.txt` carries pinned versions.
 
 ### Phase 1 — Discharge the CFR risk first
 
@@ -63,7 +74,7 @@ This phase is where correctness is actually decided. It is also the cheapest pha
 
 `preprocess.py`, `ocr.py`, `extract.py`, `pipeline.py`. This is where `verify()` becomes real.
 
-If no label fixture is available, generate one: render the sample label fields from the brief onto an image with PIL. A synthetic fixture keeps the slow suite runnable and is far better than an untested pipeline. Add photographed and stylized fixtures when you can get them.
+If no label fixture is available, generate one: render the sample label fields from the brief onto an image with PIL. A synthetic fixture keeps the slow suite runnable and is far better than an untested pipeline. Add photographed and stylized fixtures when you can get them — the synthetic one proves the wiring, not the accuracy.
 
 > **Gate:** `verify()` on a fixture returns a `LabelReport` with a `FieldResult` per field, each carrying a non-empty crop. No field returns `PASS` without having been evaluated.
 
@@ -71,7 +82,7 @@ If no label fixture is available, generate one: render the sample label fields f
 
 `app.py`. Upload → typed expected values → results with crops. **A working vertical slice.** Stop and confirm it actually works before adding batch.
 
-Time it warm, with the model cached. This is the first honest read on the 5-second requirement.
+Time it warm, with the model cached. This is the first honest read on the 5-second requirement, and the early signal is not comfortable — see the first-data-point note in `.claude/rules/performance.md`.
 
 > **Gate:** the app runs; one label goes end to end; the warm timing is recorded (whatever it is — record the real number, including if it misses).
 
@@ -84,7 +95,7 @@ Time it warm, with the model cached. This is the first honest read on the 5-seco
 ### Phase 7 — Measure, document, ship
 
 - Run `/bench-ocr`. If RapidOCR loses on stylized typography, swap to EasyOCR — `ocr.py` is the only file that changes — and re-derive the budget from measurement.
-- Write the `Dockerfile`. **OCR weights download at build time, never on first request.** This is the single most likely deployment failure.
+- Write the `Dockerfile`. Pin Python 3.11 to match the venv. Weights already ship inside the `rapidocr-onnxruntime` wheel, so `pip install` covers the build-time requirement; the thing to avoid is introducing a model that fetches at runtime.
 - Update `docs/limitations.md`: close every OPEN entry with its measured result. Do not close one by deleting it.
 - Update `docs/adr/0001-ocr-engine.md` status from *Proposed*.
 - The deliverable `README.md`: the current `README.md` is the brief and is `CLAUDE.md`'s stated source of truth. **Copy it to `docs/brief.md` first**, then write the deliverable README (setup, run, approach, tools, assumptions, limitations), then update the `CLAUDE.md` pointer to `docs/brief.md`. In that order — do not overwrite the brief before it is preserved.

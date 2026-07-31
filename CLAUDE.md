@@ -36,11 +36,12 @@ The brief also states the grading preference directly: *"A working core applicat
 > Forward-looking. None of these work until the corresponding files exist.
 
 ```bash
-# Environment. `python3.11` is NOT installed on this machine (newest local is 3.13),
-# but uv is, and it supplies 3.11 directly. Use 3.11: it has the broadest wheel
-# coverage for onnxruntime/opencv, and it matches what the Dockerfile should pin.
+# Environment — ALREADY BUILT and verified (CPython 3.11.15, all imports resolve).
+# Recreate only if .venv is missing. `python3.11` is not installed on this machine;
+# uv supplies it. 3.11 has the broadest wheel coverage for onnxruntime/opencv.
 uv venv --python 3.11
 uv pip install -r requirements-dev.txt          # runtime deps + pytest/ruff
+# NOTE: `uv venv` does not create .venv/bin/pip. Use `uv pip install` / `uv pip freeze`.
 # requirements.txt alone is the runtime set — it is what HF Spaces installs.
 # No-uv fallback: python3.13 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 
@@ -63,7 +64,7 @@ uv pip install -r requirements-dev.txt          # runtime deps + pytest/ruff
 
 Invoke venv interpreters by path as shown; do not rely on shell activation persisting between calls.
 
-**Deployment** targets HuggingFace Spaces (free tier). Pushing to the Space's `main` triggers a rebuild. Critical: OCR model weights must be downloaded at **build** time (in the `Dockerfile` or a build step), never lazily on first request — the free tier sleeps after inactivity, and a cold-start weight download would blow the latency budget on the first label an evaluator tries.
+**Deployment** targets HuggingFace Spaces (free tier). Pushing to the Space's `main` triggers a rebuild. Model weights must be present at **build** time, never fetched on first request — the free tier sleeps after inactivity, and a cold-start download would blow the budget on the first label an evaluator tries. Verified: `rapidocr-onnxruntime==1.4.4` ships its weights inside the wheel (3 ONNX files, 16.2 MB), so `pip install` already satisfies this for the default config. The remaining risk is introducing a non-default model that *does* fetch at runtime — don't.
 
 ## Architecture
 

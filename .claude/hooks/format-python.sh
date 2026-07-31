@@ -21,6 +21,8 @@ case "$file_path" in
   *) exit 0 ;;
 esac
 
+# Formatting only. `ruff check --fix` is deliberately NOT run here: it removes unused
+# imports, which silently deletes an import added moments before its first use while a
+# module is being written incrementally. Linting runs at the /build phase gates instead.
 "$ruff" format --quiet -- "$file_path" >/dev/null 2>&1
-"$ruff" check --quiet --fix -- "$file_path" >/dev/null 2>&1
 exit 0

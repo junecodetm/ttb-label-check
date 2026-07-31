@@ -1,15 +1,14 @@
 # Runtime dependencies. This file is what HuggingFace Spaces installs — keep dev
 # tooling out of it (see requirements-dev.txt).
 #
-# UNPINNED ON PURPOSE. Versions are not written here from memory. Phase 0 of /build
-# installs these, confirms the imports resolve, and then pins exact versions with
-# `pip freeze`. HF Spaces needs reproducible pins; guessed pins are worse than none.
+# Pins below were resolved and verified on macOS arm64 / CPython 3.11.15 on 2026-07-31:
+# the venv builds, every import resolves, and RapidOCR instantiates. Transitive deps
+# are left to the resolver. Pin the same Python version in the Dockerfile.
 
-streamlit
-rapidocr-onnxruntime   # PP-OCR models on ONNX Runtime. If this name fails to resolve,
-                       # try `rapidocr` + `onnxruntime` and record which one worked.
-opencv-python-headless
-rapidfuzz
-pandas
-numpy
-pillow
+streamlit==1.60.0
+rapidocr-onnxruntime==1.4.4
+opencv-python-headless==5.0.0.93
+rapidfuzz==3.14.5
+pandas==3.0.5
+numpy==2.4.6
+pillow==12.3.0

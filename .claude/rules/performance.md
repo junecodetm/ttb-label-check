@@ -33,7 +33,15 @@ Model load is excluded because it must happen **once at startup**, not per reque
 
 ## HuggingFace Spaces cold start
 
-The free tier sleeps after inactivity. OCR model weights must be downloaded at **build** time — in the `Dockerfile` or an equivalent build step — never lazily on first request. A cold-start weight download would blow the entire budget on the first label an evaluator tries, which is the only one that shapes their impression.
+The free tier sleeps after inactivity, so weights must be present at **build** time, never fetched on first request. A cold-start download would blow the entire budget on the first label an evaluator tries — the only one that shapes their impression.
+
+**Already satisfied, verified 2026-07-31:** `rapidocr-onnxruntime==1.4.4` ships its weights inside the wheel (3 ONNX files, 16.2 MB), so `pip install` in the Dockerfile handles this with no separate download step. The live risk is now the opposite one: do not switch to a non-default model that fetches at runtime, and do not add a lazy loader.
+
+## First data point (not the benchmark)
+
+On macOS arm64 / CPython 3.11.15, default RapidOCR config, one synthetic 600×120 single-line image: **model load 0.19s, inference 1.05s.**
+
+Model load is comfortably cheap, which confirms the cached-singleton design is sufficient. The 1.05s figure is *not* encouraging — that was a trivial image, and a real 2000px label with a dozen text regions will be slower against a 1.5s budget. Treat OCR as the stage most likely to miss. `/bench-ocr` on real labels is what settles it.
 
 ## Measure, don't assert
 

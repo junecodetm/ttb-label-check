@@ -35,6 +35,20 @@ Tesseract is rejected on accuracy grounds for this specific typography.
 
 The rest of the stack follows `RESOURCES.md` unchanged: Python 3.11+, OpenCV (`opencv-python-headless`), RapidFuzz, Pandas, Streamlit, HuggingFace Spaces. OCR is the only departure.
 
+## First measurements (2026-07-31)
+
+Partial verification of the reasoning above, on macOS arm64 / CPython 3.11.15:
+
+| Claim | Status |
+|---|---|
+| RapidOCR models are ~15MB | **Confirmed** — 3 ONNX files, 16.2 MB, shipped inside the wheel |
+| No runtime weight download | **Confirmed** for the default config — `pip install` is sufficient |
+| Model load is cheap enough to cache once | **Confirmed** — 0.19s |
+| Faster than EasyOCR per image | **Not tested** — EasyOCR was never installed or run |
+| Accurate on ornate typography | **Not tested** — only a synthetic single-line image was read |
+
+Inference on that synthetic image was 1.05s against a 1.5s OCR budget. That is a warning sign rather than a pass: the image was trivial, and a real label is harder.
+
 ## What this decision is not
 
 **It is not benchmarked.** The reasoning above is from install size and known inference characteristics, not from running both engines on real label images. The likely failure case is accuracy: RapidOCR may read stylized or ornate distillery typography — script fonts, curved text, heavy serifs — worse than EasyOCR does.

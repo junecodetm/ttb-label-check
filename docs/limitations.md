@@ -30,17 +30,21 @@ The 27 CFR 16.21 text in `src/labelcheck/config.py` is reproduced from memory. A
 
 **Discharge:** run `/verify-cfr-text`. Until then, a passing warning test only proves the tool matches a string that may itself be wrong.
 
-### **OPEN** — the OCR engine choice is reasoned, not measured
+### **OPEN** — the OCR engine choice is only partly verified
 
-RapidOCR was chosen over EasyOCR on install size and inference characteristics. See `docs/adr/0001-ocr-engine.md`. The predicted weak spot is accuracy on ornate distillery typography.
+RapidOCR was chosen over EasyOCR on install size and inference characteristics. As of 2026-07-31 the size claim is **confirmed** (3 ONNX files, 16.2 MB, bundled in the wheel, no runtime download) and model load is **confirmed** cheap at 0.19s.
 
-**Discharge:** run `/bench-ocr`.
+What remains untested is the part that actually decides the choice: **EasyOCR has never been installed or run**, so the "faster" claim is still unmeasured, and accuracy on ornate distillery typography — the predicted weak spot — has not been checked at all. Only a synthetic single-line image has been read successfully.
+
+**Discharge:** run `/bench-ocr`. See `docs/adr/0001-ocr-engine.md`.
 
 ### **OPEN** — the 5-second budget is inherited, not measured
 
-The per-stage budget in `.claude/rules/performance.md` is a target derived from Sarah Chen's requirement, not from timing this application. No latency figure in this repository has been measured.
+The per-stage budget in `.claude/rules/performance.md` is a target derived from Sarah Chen's requirement, not from timing this application on real labels.
 
-**Discharge:** run `/bench-ocr`, then replace the estimates with p50 and p95 figures.
+One data point exists and it is not reassuring: OCR on a **synthetic 600×120 single-line image** took 1.05s against a 1.5s budget for that stage. A real 2000px label with a dozen text regions will be slower. OCR is the stage most likely to miss.
+
+**Discharge:** run `/bench-ocr` on real label images, then replace the estimates with measured p50 and p95 figures. If the budget cannot be met, say so and record the real number rather than shipping past it.
 
 ---
 
