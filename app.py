@@ -3,8 +3,10 @@ from __future__ import annotations
 import csv
 import io
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from time import perf_counter
+from typing import Protocol
 
 import streamlit as st
 
@@ -12,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 import labelcheck.ocr
 import labelcheck.pipeline
+from labelcheck import batch as label_batch
+from labelcheck import report as batch_report
 from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
 
 _FIELD_LABELS = {
@@ -100,6 +104,16 @@ _NEUTRAL_OVERALL_STATUS = """
     <strong>Overall: Some or all checks were not completed.</strong>
 </div>
 """
+
+_BATCH_VIEW_KEY = "labelcheck_batch_view"
+_BATCH_RESULTS_KEY = "labelcheck_batch_results"
+_BATCH_FRAME_KEY = "labelcheck_batch_frame"
+
+
+class _UploadedFile(Protocol):
+    name: str
+
+    def getvalue(self) -> bytes: ...
 
 
 @st.cache_resource(show_spinner=False)
@@ -201,6 +215,140 @@ def _render_report(report: LabelReport, elapsed_seconds: float) -> None:
     )
 
 
+def _render_batch_page() -> None:
+    if st.button("Back to one label", width="stretch"):
+        _clear_batch_results()
+        st.session_state[_BATCH_VIEW_KEY] = False
+        st.rerun()
+
+    with st.form("batch_label_check"):
+        st.subheader("1. Upload all label images")
+        uploaded_files = st.file_uploader(
+            "PNG or JPEG label images",
+            type=["png", "jpg", "jpeg"],
+            accept_multiple_files=True,
+            help="Choose every label image in this group.",
+        )
+        st.subheader("2. Upload the application values")
+        manifest_file = st.file_uploader(
+            "Application values CSV",
+            type=["csv"],
+            help="Each row must name one image and give the values expected on that label.",
+        )
+        st.write("Use these column names in this order:")
+        st.code(", ".join(label_batch.MANIFEST_COLUMNS), language=None)
+        submitted = st.form_submit_button(
+            "Check all labels",
+            type="primary",
+            width="stretch",
+        )
+
+    if submitted:
+        _handle_batch_submission(uploaded_files, manifest_file)
+    _render_saved_batch_results()
+
+
+def _handle_batch_submission(
+    uploaded_files: Sequence[_UploadedFile] | None,
+    manifest_file: _UploadedFile | None,
+) -> None:
+    _clear_batch_results()
+    if manifest_file is None:
+        st.error(
+            "Upload the application values CSV, then choose Check all labels again. "
+            "You may leave the image list empty to see which files are missing."
+        )
+        return
+
+    try:
+        manifest_bytes = manifest_file.getvalue()
+        images = [
+            label_batch.UploadedImage(upload.name, upload.getvalue())
+            for upload in uploaded_files or ()
+        ]
+    except Exception:
+        st.error("One of these files could not be opened. Choose the files again and retry.")
+        return
+    if not manifest_bytes:
+        st.error("The application values CSV is empty. Choose a completed CSV and retry.")
+        return
+
+    try:
+        manifest = label_batch.parse_manifest(manifest_bytes)
+    except label_batch.ManifestError as error:
+        st.error(str(error))
+        return
+
+    progress = st.progress(0.0, text="Completed 0 labels")
+
+    def show_progress(completed: int, total: int) -> None:
+        fraction = completed / total if total else 1.0
+        progress.progress(fraction, text=f"Completed {completed} of {total} labels")
+
+    try:
+        started_at = perf_counter()
+        results = label_batch.run_batch(
+            images,
+            manifest,
+            progress_callback=show_progress,
+        )
+        elapsed_seconds = perf_counter() - started_at
+    except label_batch.BatchInputError as error:
+        st.error(str(error))
+        return
+    except Exception:
+        st.error(
+            "The labels could not be checked. Keep this page open, confirm the files, and retry."
+        )
+        return
+
+    frame = batch_report.results_to_dataframe(results)
+    st.session_state[_BATCH_RESULTS_KEY] = results
+    st.session_state[_BATCH_FRAME_KEY] = frame
+    st.success(
+        f"Completed {len(results)} of {len(results)} labels in {elapsed_seconds:.1f} seconds."
+    )
+
+
+def _render_saved_batch_results() -> None:
+    results = st.session_state.get(_BATCH_RESULTS_KEY)
+    frame = st.session_state.get(_BATCH_FRAME_KEY)
+    if not isinstance(results, list) or frame is None:
+        return
+
+    st.subheader("Review the results")
+    st.write("Problems appear first. You can sort the table by choosing a column heading.")
+    st.dataframe(frame, hide_index=True, width="stretch")
+    st.download_button(
+        "Download all results as CSV",
+        data=batch_report.dataframe_to_csv(frame),
+        file_name="label-check-batch-results.csv",
+        mime="text/csv",
+        on_click="ignore",
+        width="stretch",
+    )
+
+    reviewable = [result for result in results if result.report is not None]
+    if not reviewable:
+        return
+    selected_index = st.selectbox(
+        "Choose a label to review with its image crops",
+        options=range(len(reviewable)),
+        format_func=lambda index: reviewable[index].filename,
+    )
+    selected = reviewable[selected_index]
+    st.subheader(f"Evidence for {selected.filename}")
+    st.write("Review every crop before making your decision.")
+    if selected.report is not None:
+        for field_name, result in selected.report.results.items():
+            _render_field(field_name, result)
+
+
+def _clear_batch_results() -> None:
+    st.session_state.pop(_BATCH_RESULTS_KEY, None)
+    st.session_state.pop(_BATCH_FRAME_KEY, None)
+
+
 def main() -> None:
     """Present one accessible path while the domain package owns every check."""
 
@@ -211,16 +359,28 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     st.markdown(_STATIC_STYLES, unsafe_allow_html=True)
-    st.title("Check an alcohol label")
-    st.write(
-        "Upload one label and enter the application values. We will show what matches "
-        "and what needs your judgment."
-    )
+    batch_view = bool(st.session_state.get(_BATCH_VIEW_KEY, False))
+    if batch_view:
+        st.title("Check many alcohol labels")
+        st.write(
+            "Upload all label images together with one CSV containing the application values "
+            "for each filename."
+        )
+    else:
+        st.title("Check an alcohol label")
+        st.write(
+            "Upload one label and enter the application values. We will show what matches "
+            "and what needs your judgment."
+        )
 
     try:
         _warm_ocr_engine()
     except Exception:
         st.error("The label reader could not start. Reload the page and try again.")
+        return
+
+    if batch_view:
+        _render_batch_page()
         return
 
     with st.form("single_label_check"):
@@ -239,6 +399,13 @@ def main() -> None:
         bottler = st.text_input("Bottler or producer (required)")
         origin_country = st.text_input("Country of origin (optional)")
         submitted = st.form_submit_button("Check label", type="primary", width="stretch")
+
+    st.divider()
+    st.subheader("Have many labels to check?")
+    st.write("Upload the images together and track progress while they are checked.")
+    if st.button("Check many labels", width="stretch"):
+        st.session_state[_BATCH_VIEW_KEY] = True
+        st.rerun()
 
     if not submitted:
         return
