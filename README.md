@@ -128,4 +128,7 @@ Accuracy is reported in two parts, because only one of them means much:
 - Nothing is persisted, so there is no history, resumable batch, or audit trail.
 - Image correction degrades gracefully when it cannot recover a poor photograph; the report does not pretend the unreadable evidence passed.
 
+A line-by-line trace from each requirement in the brief to the code and test that
+satisfies it is in [docs/requirements-audit.md](docs/requirements-audit.md).
+
 See [limitations and benchmark details](docs/limitations.md) for the measured accuracy results, accepted trade-offs, and remaining production work. The original take-home brief is preserved at [docs/brief.md](docs/brief.md).
