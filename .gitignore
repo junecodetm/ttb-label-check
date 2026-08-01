@@ -22,5 +22,8 @@ uploads/
 # so they are never committed.
 .bench_images/
 
+# Third-party artwork fetched on demand for OCR testing; deliberately not committed.
+.real_labels/
+
 # Playwright MCP session artifacts from browser-driven verification.
 .playwright-mcp/

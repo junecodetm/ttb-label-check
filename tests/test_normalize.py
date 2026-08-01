@@ -116,6 +116,19 @@ def test_origin_text_removes_only_configured_label_boilerplate(raw: str, expecte
     assert normalize_origin_text(raw) == expected
 
 
+@pytest.mark.parametrize(
+    "raw",
+    ["N/A", "n/a", "NA", "none", "None", "-", "--", r"n\a", "not applicable", "domestic"],
+)
+def test_origin_placeholder_values_normalize_as_missing(raw: str) -> None:
+    assert normalize_origin_text(raw) == ""
+
+
+@pytest.mark.parametrize("raw", ["USA", "United States"])
+def test_real_country_names_are_not_origin_placeholders(raw: str) -> None:
+    assert normalize_origin_text(raw)
+
+
 @pytest.mark.parametrize("normalizer", [normalize_fuzzy_text, normalize_identity_text])
 def test_text_normalizers_reject_missing_values(normalizer: object) -> None:
     with pytest.raises(TypeError):
@@ -315,12 +328,54 @@ def test_net_contents_parser_rejects_missing_malformed_or_ambiguous_units(raw: s
         ("Kentucky Straight Bourbon Whiskey", "distilled_spirits"),
         ("Vodka", "distilled_spirits"),
         ("unknown beverage", None),
+        # Malt beverage designations, 27 CFR 7.142-7.145.
+        ("Malt Liquor", "beer"),
+        ("Flavored Malt Beverage", "beer"),
+        ("Bohemian Pilsner", "beer"),
+        ("Imperial Stout", "beer"),
+        # Agricultural wines, 27 CFR 4.21(e)-(f).
+        ("Hard Cider", "wine"),
+        ("Perry", "wine"),
+        ("Honey Wine", "wine"),
+        ("Mead", "wine"),
+        ("Sake", "wine"),
+        # Semi-generic geographic wine names, 27 CFR 4.24(b)(2).
+        ("Champagne", "wine"),
+        ("Tawny Port", "wine"),
+        ("Cream Sherry", "wine"),
+        ("Sweet Vermouth", "wine"),
+        # Varietal designations, 27 CFR 4.23.
+        ("Prosecco", "wine"),
+        ("Old Vine Zinfandel", "wine"),
+        # Distilled spirits classes, 27 CFR 5.141-5.156.
+        ("Cognac", "distilled_spirits"),
+        ("Grappa", "distilled_spirits"),
+        ("Blended Applejack", "distilled_spirits"),
+        ("Agave Spirits", "distilled_spirits"),
+        ("Mezcal", "distilled_spirits"),
+        ("Coffee Liqueur", "distilled_spirits"),
+        ("Peppermint Schnapps", "distilled_spirits"),
+        ("Crème de Cassis", "distilled_spirits"),
+        ("Straight Rye Whisky", "distilled_spirits"),
+        # Deliberately unmapped: the base alcohol is not determinable from the class
+        # wording, so the alcohol rule must route these to REVIEW rather than guess
+        # which statutory tolerance applies.
+        ("Hard Seltzer", None),
+        ("Hard Lemonade", None),
     ],
 )
 def test_beverage_classes_are_canonicalized_for_tolerance_lookup(
     raw: str, expected: str | None
 ) -> None:
     assert canonical_beverage_class(raw) == expected
+
+
+def test_compound_class_wording_outranks_the_shorter_keyword_it_contains() -> None:
+    """Barley wine is a malt beverage; its tolerance must not be the wine figure."""
+
+    assert canonical_beverage_class("Barley Wine Ale") == "beer"
+    assert canonical_beverage_class("Sparkling Wine") == "wine"
+    assert canonical_beverage_class("Rice Wine") == "wine"
 
 
 def test_word_diff_reports_insertions_deletions_and_replacements() -> None:

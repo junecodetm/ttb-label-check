@@ -23,17 +23,55 @@ LEGAL_SUFFIX_TOKEN_SEQUENCES = (
     ("llp",),
     ("lp",),
 )
+# Longest sequences first, for the same first-match-wins reason as the bottler list.
 ORIGIN_PREFIX_TOKEN_SEQUENCES = (
+    ("country", "of", "origin"),
+    ("product", "of", "the"),
+    ("produce", "of"),
     ("product", "of"),
-    ("made", "in"),
-    ("produced", "in"),
     ("imported", "from"),
+    ("bottled", "in"),
+    ("distilled", "in"),
+    ("produced", "in"),
+    ("brewed", "in"),
+    ("vinted", "in"),
+    ("grown", "in"),
+    ("made", "in"),
+    ("origin",),
 )
+# Manifest placeholders are compared case-insensitively after Unicode and whitespace cleanup.
+ORIGIN_PLACEHOLDER_VALUES = frozenset(
+    ("n/a", "na", "none", "-", "--", r"n\a", "not applicable", "domestic")
+)
+# Longest sequences first: `normalize_bottler_text` strips the first match, so
+# "produced and bottled by" must be tried before the "bottled by" it contains.
 BOTTLER_PREFIX_TOKEN_SEQUENCES = (
-    ("produced", "and", "bottled", "by"),
+    ("blended", "and", "bottled", "by"),
+    ("brewed", "and", "bottled", "by"),
+    ("brewed", "and", "canned", "by"),
     ("distilled", "and", "bottled", "by"),
+    ("produced", "and", "bottled", "by"),
+    ("cellared", "and", "bottled", "by"),
+    ("vinted", "and", "bottled", "by"),
+    ("imported", "and", "bottled", "by"),
     ("bottled", "by"),
     ("bottled", "for"),
+    ("brewed", "by"),
+    ("brewed", "for"),
+    ("blended", "by"),
+    ("canned", "by"),
+    ("canned", "for"),
+    ("cellared", "by"),
+    ("distilled", "by"),
+    ("imported", "by"),
+    ("manufactured", "by"),
+    ("packaged", "by"),
+    ("packaged", "for"),
+    ("prepared", "by"),
+    ("produced", "by"),
+    ("produced", "for"),
+    ("vinted", "by"),
+    ("made", "by"),
 )
 FUZZY_UNICODE_NORMALIZATION_FORM = "NFKC"
 APOSTROPHE_CHARACTERS = frozenset(("'", "’", "ʼ"))
@@ -124,27 +162,161 @@ def abv_tolerance_for(canonical_class: str, labeled_abv: Decimal) -> Decimal:
     raise KeyError(f"No CFR-sourced ABV tolerance for beverage class {canonical_class!r}")
 
 
+# Class/type designation vocabulary, used only to pick which ABV tolerance applies.
+# `canonical_beverage_class` resolves ties by longest keyword, so compound terms such
+# as "barley wine" (a malt beverage) correctly outrank the bare "wine".
+#
+# A term is listed only where the category is unambiguous. Genuinely ambiguous
+# products — hard seltzer, hard lemonade, wine coolers — are deliberately absent so
+# they resolve to no class and the alcohol rule routes them to REVIEW rather than
+# silently applying the wrong statutory tolerance.
 BEVERAGE_CLASS_KEYWORDS = (
     (
+        # Malt beverage class designations, 27 CFR 7.142-7.145.
         "beer",
-        ("beer", "ale", "lager", "malt beverage", "barley wine", "porter", "stout"),
+        (
+            "beer",
+            "ale",
+            "lager",
+            "lager beer",
+            "malt beverage",
+            "malt liquor",
+            "barley wine",
+            "porter",
+            "stout",
+            "pilsner",
+            "pilsener",
+            "bock",
+            "flavored malt beverage",
+            "cereal beverage",
+            "near beer",
+        ),
     ),
-    ("wine", ("wine", "cabernet", "merlot", "chardonnay", "pinot", "riesling")),
     (
+        # Wine classes and types, 27 CFR 4.21; semi-generic names, 27 CFR 4.24.
+        # Cider, perry, mead (honey wine) and sake are agricultural wines under
+        # 27 CFR 4.21(e)-(f); sake is named there explicitly.
+        "wine",
+        (
+            "wine",
+            "grape wine",
+            "table wine",
+            "light wine",
+            "dessert wine",
+            "sparkling wine",
+            "carbonated wine",
+            "citrus wine",
+            "fruit wine",
+            "agricultural wine",
+            "honey wine",
+            "mead",
+            "rice wine",
+            "sake",
+            "saké",
+            "cider",
+            "hard cider",
+            "perry",
+            "aperitif wine",
+            "vermouth",
+            "retsina",
+            "sangria",
+            # Semi-generic geographic designations, 27 CFR 4.24(b)(2).
+            "angelica",
+            "burgundy",
+            "claret",
+            "chablis",
+            "champagne",
+            "chianti",
+            "malaga",
+            "marsala",
+            "madeira",
+            "moselle",
+            "port",
+            "rhine wine",
+            "hock",
+            "sauterne",
+            "haut sauterne",
+            "sherry",
+            "tokay",
+            # Common varietal designations, 27 CFR 4.23.
+            "cabernet",
+            "merlot",
+            "chardonnay",
+            "pinot",
+            "riesling",
+            "sauvignon",
+            "zinfandel",
+            "syrah",
+            "shiraz",
+            "malbec",
+            "tempranillo",
+            "sangiovese",
+            "grenache",
+            "viognier",
+            "moscato",
+            "muscat",
+            "prosecco",
+            "rose wine",
+            "blush wine",
+        ),
+    ),
+    (
+        # Distilled spirits classes, 27 CFR 5.141-5.156. The 27 CFR 5.65 tolerance
+        # applies to every distilled spirits product, so specialty products under
+        # 27 CFR 5.156 take the same figure as the named classes.
         "distilled_spirits",
         (
             "distilled spirits",
             "distilled spirit",
             "spirits",
             "spirit",
+            "neutral spirits",
+            "grain spirits",
             "whiskey",
             "whisky",
             "bourbon",
+            "rye whiskey",
+            "rye whisky",
+            "corn whiskey",
+            "corn whisky",
+            "malt whiskey",
+            "malt whisky",
+            "single malt",
+            "light whiskey",
+            "light whisky",
+            "scotch",
             "vodka",
             "gin",
+            "genever",
+            "sloe gin",
             "rum",
+            "cachaca",
+            "cachaça",
             "brandy",
+            "cognac",
+            "armagnac",
+            "grappa",
+            "pisco",
+            "applejack",
+            "kirschwasser",
+            "slivovitz",
+            "agave spirits",
             "tequila",
+            "mezcal",
+            "mescal",
+            "cordial",
+            "liqueur",
+            "creme de",
+            "crème de",
+            "schnapps",
+            "absinthe",
+            "aquavit",
+            "akvavit",
+            "soju",
+            "baijiu",
+            "shochu",
+            "moonshine",
+            "flavored spirits",
         ),
     ),
 )
@@ -238,6 +410,15 @@ WARNING_MAX_LINE_GAP_MULTIPLIER = 3.0
 WARNING_FALLBACK_MIN_CUES = 2
 BOTTLER_MAX_CONTINUATION_LINES = 3
 BOTTLER_MAX_LINE_GAP_MULTIPLIER = 1.5
+
+# A country of origin wraps onto at most one continuation line in practice
+# ("PRODUCT OF" above the country name), so allow less drift than a bottler address.
+ORIGIN_MAX_CONTINUATION_LINES = 1
+ORIGIN_MAX_LINE_GAP_MULTIPLIER = 1.5
+
+# Pillow's own decompression-bomb ceiling. Larger than any real label photograph,
+# small enough that a hostile or corrupt file cannot exhaust memory before decoding.
+MAX_IMAGE_PIXELS = 80_000_000
 BRAND_MAX_CHARACTERS = 80
 BRAND_AMBIGUITY_HEIGHT_RATIO = 0.9
 BRAND_MULTILINE_MAX_GAP_RATIO = 0.5

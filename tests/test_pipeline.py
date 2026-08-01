@@ -98,6 +98,31 @@ def test_domestic_origin_stays_not_evaluated_when_ocr_finds_conflicting_origin_t
     assert report.results["origin_country"].status is Status.NOT_EVALUATED
 
 
+def test_origin_placeholder_does_not_make_ambiguous_ocr_evidence_an_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    origin_blocks = [
+        TextBlock(
+            "Product of Scotland",
+            ((20.0, 20.0), (240.0, 20.0), (240.0, 45.0), (20.0, 45.0)),
+            0.98,
+        ),
+        TextBlock(
+            "Made in Canada",
+            ((20.0, 60.0), (210.0, 60.0), (210.0, 85.0), (20.0, 85.0)),
+            0.97,
+        ),
+    ]
+    monkeypatch.setattr("labelcheck.pipeline.ocr.recognize", lambda _image: origin_blocks)
+    expected = replace(sample_application_record(), origin_country="N/A")
+
+    report = verify(make_label(), expected)
+
+    result = report.results["origin_country"]
+    assert result.status is Status.NOT_EVALUATED
+    assert "blank or placeholder" in result.detail.lower()
+
+
 def test_imported_origin_conflict_requires_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -312,3 +337,38 @@ def test_default_ocr_backend_uses_measured_runtime_settings(
         "max_side_len": 1400,
         "use_cls": False,
     }
+
+
+def _png_bytes(width: int, height: int) -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (width, height), (255, 255, 255)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_oversized_image_is_rejected_as_a_plain_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A decompression bomb must not escape preprocessing as an uncaught exception."""
+
+    # A real gigapixel allocation is unnecessary: lower the ceiling instead so a
+    # small fixture trips the same guard the header check applies in production.
+    monkeypatch.setattr(preprocess_module, "MAX_IMAGE_PIXELS", 16)
+
+    with pytest.raises(ValueError, match="too large to decode"):
+        preprocess_image(_png_bytes(64, 64))
+
+
+def test_pillow_decompression_bomb_error_is_converted_not_propagated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def explode(*_args: object, **_kwargs: object) -> None:
+        raise Image.DecompressionBombError("bomb")
+
+    monkeypatch.setattr(preprocess_module.Image, "open", explode)
+
+    with pytest.raises(ValueError, match="too large to decode"):
+        preprocess_image(_png_bytes(8, 8))
+
+
+def test_ordinary_sized_label_still_decodes_after_the_size_guard() -> None:
+    assert preprocess_image(_png_bytes(300, 200)).shape[2] == 3

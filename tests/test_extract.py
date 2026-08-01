@@ -1,9 +1,10 @@
 import numpy as np
+import pytest
 
 from labelcheck.config import GOVERNMENT_WARNING
 from labelcheck.extract import FIELD_NAMES, ExtractionState, extract_candidates
 from labelcheck.models import TextBlock
-from labelcheck.normalize import normalize_warning_text
+from labelcheck.normalize import normalize_bottler_text, normalize_warning_text
 
 
 def _block(
@@ -140,6 +141,54 @@ def test_bottler_signal_on_its_own_line_collects_contiguous_address_lines() -> N
     assert candidate.crop
 
 
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "packaged by",
+        "brewed by",
+        "distilled by",
+        "distilled and bottled by",
+        "produced and bottled by",
+        "produced by",
+        "blended and bottled by",
+        "blended by",
+        "imported by",
+        "vinted by",
+        "vinted and bottled by",
+        "canned by",
+        "brewed and bottled by",
+        "brewed and canned by",
+        "cellared and bottled by",
+        "made by",
+        "prepared by",
+    ],
+)
+def test_common_bottler_phrases_are_detected_and_fully_removed(phrase: str) -> None:
+    blocks = [_block(f"{phrase} Acme Cellars", 20, 20, 300, 42)]
+    image = np.full((80, 340, 3), 255, dtype=np.uint8)
+
+    candidate = extract_candidates(blocks, image)["bottler"]
+
+    assert candidate.state is ExtractionState.FOUND
+    assert normalize_bottler_text(candidate.value or "") == "acme cellars"
+
+
+@pytest.mark.parametrize("prefix", ["PRODUCT OF", "PRODUCED IN"])
+def test_wrapped_origin_statement_collects_the_country_continuation(prefix: str) -> None:
+    blocks = [
+        _block(prefix, 20, 20, 180, 42),
+        _block("United Kingdom", 20, 47, 220, 69),
+    ]
+    image = np.full((100, 300, 3), 255, dtype=np.uint8)
+
+    candidate = extract_candidates(blocks, image)["origin_country"]
+
+    assert candidate.state is ExtractionState.FOUND
+    assert candidate.value == f"{prefix}\nUnited Kingdom"
+    assert len(candidate.blocks) == 2
+    assert candidate.crop
+
+
 def test_adjacent_centered_brand_lines_are_one_candidate() -> None:
     blocks = [
         _block("OLD TOM", 125, 20, 275, 60),
@@ -190,3 +239,67 @@ def test_missing_and_malformed_blocks_return_all_fields_with_fallback_crops() ->
     assert all(candidate.state is ExtractionState.MISSING for candidate in candidates.values())
     assert all(candidate.value is None for candidate in candidates.values())
     assert all(candidate.crop for candidate in candidates.values())
+
+
+def _image() -> np.ndarray:
+    return np.zeros((320, 800, 3), dtype=np.uint8)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Packaged by Old Tom Distillery, Bardstown, Kentucky",
+        "Brewed by Old Tom Distillery, Bardstown, Kentucky",
+        "Canned by Old Tom Distillery, Bardstown, Kentucky",
+        "Blended by Old Tom Distillery, Bardstown, Kentucky",
+        "Bottled for Old Tom Distillery, Bardstown, Kentucky",
+        "Produced and bottled by Old Tom Distillery, Bardstown, Kentucky",
+    ],
+)
+def test_real_label_bottling_phrases_are_recognised(line: str) -> None:
+    """Labels say more than "bottled by"; every common verb must locate the field."""
+
+    candidates = extract_candidates([_block(line, 35, 151, 620, 170)], _image())
+
+    bottler = candidates["bottler"]
+    assert bottler.state is ExtractionState.FOUND
+    assert "Old Tom Distillery" in (bottler.value or "")
+
+
+def test_bottling_phrase_prefix_is_stripped_before_comparison() -> None:
+    """The longer phrase must win, or "produced and bottled by" leaks into the value."""
+
+    assert normalize_bottler_text("Produced and bottled by Old Tom Distillery") == (
+        normalize_bottler_text("Bottled by Old Tom Distillery")
+    )
+    assert normalize_bottler_text("Packaged by Old Tom Distillery") == "old tom distillery"
+
+
+def test_origin_split_across_two_lines_is_joined() -> None:
+    """ "PRODUCT OF" above "FRANCE" is one value the label happened to wrap."""
+
+    candidates = extract_candidates(
+        [
+            _block("PRODUCT OF", 35, 174, 200, 193),
+            _block("FRANCE", 35, 196, 180, 215),
+        ],
+        _image(),
+    )
+
+    origin = candidates["origin_country"]
+    assert origin.state is ExtractionState.FOUND
+    assert "FRANCE" in (origin.value or "")
+
+
+def test_complete_origin_line_does_not_absorb_the_line_below_it() -> None:
+    """A finished statement must not swallow unrelated label text."""
+
+    candidates = extract_candidates(
+        [
+            _block("Product of Scotland", 35, 174, 260, 193),
+            _block("FINE SPIRITS SINCE 1890", 35, 196, 300, 215),
+        ],
+        _image(),
+    )
+
+    assert candidates["origin_country"].value == "Product of Scotland"

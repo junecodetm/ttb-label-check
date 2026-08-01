@@ -23,11 +23,13 @@ from labelcheck.config import (
     NUMBER_PATTERN,
     OCR_LINE_CENTER_TOLERANCE_RATIO,
     OCR_LINE_MIN_VERTICAL_OVERLAP_RATIO,
+    ORIGIN_MAX_CONTINUATION_LINES,
+    ORIGIN_MAX_LINE_GAP_MULTIPLIER,
     WARNING_FALLBACK_MIN_CUES,
     WARNING_MAX_LINE_GAP_MULTIPLIER,
 )
 from labelcheck.models import BoundingBox, TextBlock
-from labelcheck.normalize import normalize_identity_text, parse_abv
+from labelcheck.normalize import normalize_identity_text, normalize_origin_text, parse_abv
 
 FIELD_NAMES: tuple[str, ...] = (
     "brand_name",
@@ -121,11 +123,14 @@ _NET_CONTENT_CANDIDATE = re.compile(
     re.IGNORECASE,
 )
 _BOTTLER_SIGNAL = re.compile(
-    r"\b(?:bottled|distilled|produced|imported|brewed|vinted|cellared|manufactured)\s+by\b",
+    r"\b(?:bottled|distilled|produced|imported|brewed|vinted|cellared|manufactured"
+    r"|packaged|canned|blended|prepared|made)\s+(?:by|for)\b",
     re.IGNORECASE,
 )
 _ORIGIN_SIGNAL = re.compile(
-    r"^\s*(?:product\s+of|made\s+in|produced\s+in|imported\s+from)\b",
+    r"^\s*(?:product\s+of|produce\s+of|made\s+in|produced\s+in|bottled\s+in"
+    r"|distilled\s+in|brewed\s+in|vinted\s+in|grown\s+in|imported\s+from"
+    r"|country\s+of\s+origin)\b",
     re.IGNORECASE,
 )
 _WARNING_ANCHOR = re.compile(r"\bgovernment\s+warning\s*:", re.IGNORECASE)
@@ -340,42 +345,80 @@ def _bottler_selections(lines: Sequence[_Line]) -> list[_Selection]:
         if _BOTTLER_SIGNAL.search(line.text)
     ]
 
-    extended: list[_Selection] = []
-    for selection in selections:
-        indices = list(selection.line_indices)
-        values = [selection.value]
-        previous = lines[indices[-1]]
-        for index in range(indices[-1] + 1, len(lines)):
-            if len(indices) - len(selection.line_indices) >= BOTTLER_MAX_CONTINUATION_LINES:
-                break
-            following = lines[index]
-            gap = following.top - previous.bottom
-            if gap > max(previous.height, following.height) * BOTTLER_MAX_LINE_GAP_MULTIPLIER:
-                break
-            if (
-                _ANY_EXPLICIT_PATTERN.match(following.text)
-                or _WARNING_ANCHOR.search(following.text)
-                or _ORIGIN_SIGNAL.search(following.text)
-                or _BOTTLER_SIGNAL.search(following.text)
-                or re.search(ABV_MARKER_SIGNAL_PATTERN, following.text, flags=re.IGNORECASE)
-                or _NET_CONTENT_CANDIDATE.search(following.text)
-            ):
-                break
-            indices.append(index)
-            values.append(following.text.strip())
-            previous = following
-        extended.append(_Selection("\n".join(values), tuple(indices)))
-    return extended
+    return [
+        _extend_with_continuation_lines(
+            lines,
+            selection,
+            max_continuation_lines=BOTTLER_MAX_CONTINUATION_LINES,
+            max_line_gap_multiplier=BOTTLER_MAX_LINE_GAP_MULTIPLIER,
+        )
+        for selection in selections
+    ]
+
+
+def _starts_a_different_field(line: _Line) -> bool:
+    """Stop a wrapped value before it swallows the next field on the label."""
+
+    return bool(
+        _ANY_EXPLICIT_PATTERN.match(line.text)
+        or _WARNING_ANCHOR.search(line.text)
+        or _ORIGIN_SIGNAL.search(line.text)
+        or _BOTTLER_SIGNAL.search(line.text)
+        or re.search(ABV_MARKER_SIGNAL_PATTERN, line.text, flags=re.IGNORECASE)
+        or _NET_CONTENT_CANDIDATE.search(line.text)
+    )
+
+
+def _extend_with_continuation_lines(
+    lines: Sequence[_Line],
+    selection: _Selection,
+    *,
+    max_continuation_lines: int,
+    max_line_gap_multiplier: float,
+) -> _Selection:
+    """Join the wrapped lines of one value so a split address or origin reads whole."""
+
+    indices = list(selection.line_indices)
+    values = [selection.value]
+    previous = lines[indices[-1]]
+    for index in range(indices[-1] + 1, len(lines)):
+        if len(indices) - len(selection.line_indices) >= max_continuation_lines:
+            break
+        following = lines[index]
+        gap = following.top - previous.bottom
+        if gap > max(previous.height, following.height) * max_line_gap_multiplier:
+            break
+        if _starts_a_different_field(following):
+            break
+        indices.append(index)
+        values.append(following.text.strip())
+        previous = following
+    return _Selection("\n".join(values), tuple(indices))
 
 
 def _origin_selections(lines: Sequence[_Line]) -> list[_Selection]:
     explicit = _explicit_selections(lines, "origin_country")
     if explicit:
         return explicit
-    return [
+
+    selections = [
         _Selection(line.text.strip(), (index,))
         for index, line in enumerate(lines)
         if _ORIGIN_SIGNAL.search(line.text)
+    ]
+    # Only a bare prefix needs the next line: "PRODUCT OF" above "FRANCE" is one
+    # value split in two. A complete statement already names the country, and
+    # extending it would let unrelated label text contaminate the comparison.
+    return [
+        _extend_with_continuation_lines(
+            lines,
+            selection,
+            max_continuation_lines=ORIGIN_MAX_CONTINUATION_LINES,
+            max_line_gap_multiplier=ORIGIN_MAX_LINE_GAP_MULTIPLIER,
+        )
+        if not normalize_origin_text(selection.value)
+        else selection
+        for selection in selections
     ]
 
 

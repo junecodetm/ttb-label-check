@@ -77,16 +77,16 @@ def _application() -> ApplicationRecord:
 def _passing_report(*, unevaluated_fields: frozenset[str] = frozenset()) -> LabelReport:
     results = {
         field_name: FieldResult(
-            status=(
-                Status.NOT_EVALUATED if field_name in unevaluated_fields else Status.PASS
-            ),
+            status=(Status.NOT_EVALUATED if field_name in unevaluated_fields else Status.PASS),
             expected=(
                 "Application Brand" if field_name == "brand_name" else f"Expected {field_name}"
             ),
             extracted=(
                 None
                 if field_name in unevaluated_fields
-                else "Label Brand" if field_name == "brand_name" else f"Read {field_name}"
+                else "Label Brand"
+                if field_name == "brand_name"
+                else f"Read {field_name}"
             ),
             confidence=None if field_name in unevaluated_fields else 0.94,
             crop=b"crop",
@@ -170,8 +170,7 @@ def test_dataframe_csv_export_is_in_memory_and_keeps_the_screen_columns() -> Non
     assert exported.loc[0, "Filename"] == "matched.png"
     assert exported.loc[0, "Overall result"] == "PASS"
     assert exported.loc[0, "Checks that could not be run"] == (
-        "2 checks could not be run — Government warning bold text; "
-        "Government warning type size"
+        "2 checks could not be run — Government warning bold text; Government warning type size"
     )
     assert exported.loc[0, "Brand name — we read this as"] == "Label Brand"
     assert exported.loc[0, "Brand name — confidence"] == pytest.approx(0.94)
@@ -180,9 +179,7 @@ def test_dataframe_csv_export_is_in_memory_and_keeps_the_screen_columns() -> Non
 def test_unevaluated_status_uses_plain_language() -> None:
     batch = _load_module("labelcheck.batch")
     report = _load_module("labelcheck.report")
-    label_report = _passing_report(
-        unevaluated_fields=frozenset(REPORT_FIELDS)
-    )
+    label_report = _passing_report(unevaluated_fields=frozenset(REPORT_FIELDS))
 
     frame = report.results_to_dataframe(
         [
@@ -259,9 +256,7 @@ def test_unknown_unevaluated_check_is_disclosed_without_breaking_export() -> Non
         [batch.BatchResult(filename="unknown.png", report=label_report)]
     )
 
-    assert frame.loc[0, "Checks that could not be run"].startswith(
-        "11 checks could not be run — "
-    )
+    assert frame.loc[0, "Checks that could not be run"].startswith("11 checks could not be run — ")
     assert "Unknown check" in frame.loc[0, "Checks that could not be run"]
 
 

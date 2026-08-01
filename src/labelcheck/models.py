@@ -72,7 +72,5 @@ class LabelReport:
         """Expose skipped check names so aggregate displays cannot hide them."""
 
         return tuple(
-            name
-            for name, result in self.results.items()
-            if result.status is Status.NOT_EVALUATED
+            name for name, result in self.results.items() if result.status is Status.NOT_EVALUATED
         )

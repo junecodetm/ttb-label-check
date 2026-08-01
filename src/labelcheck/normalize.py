@@ -19,6 +19,7 @@ from labelcheck.config import (
     NET_CONTENT_UNIT_TO_ML,
     NET_CONTENTS_PATTERN,
     NUMBER_PATTERN,
+    ORIGIN_PLACEHOLDER_VALUES,
     ORIGIN_PREFIX_TOKEN_SEQUENCES,
     PROOF_MARKER_PATTERN,
     PROOF_PATTERN,
@@ -99,14 +100,27 @@ def normalize_compact_bottler_text(value: str) -> str:
     return normalize_bottler_text(value).replace(" ", "")
 
 
+def is_origin_placeholder(value: str) -> bool:
+    """Identify manifest entries that agents use to mean no import origin was supplied."""
+
+    canonical = collapse_whitespace(
+        unicodedata.normalize(FUZZY_UNICODE_NORMALIZATION_FORM, _require_text(value))
+    ).casefold()
+    return canonical in ORIGIN_PLACEHOLDER_VALUES
+
+
 def normalize_origin_text(value: str) -> str:
     """Remove standard label boilerplate before comparing a manifest country value."""
 
+    if is_origin_placeholder(value):
+        return ""
     tokens = normalize_identity_text(value).split()
     for prefix in ORIGIN_PREFIX_TOKEN_SEQUENCES:
         if tuple(tokens[: len(prefix)]) == prefix:
-            return " ".join(tokens[len(prefix) :])
-    return " ".join(tokens)
+            normalized = " ".join(tokens[len(prefix) :])
+            return "" if is_origin_placeholder(normalized) else normalized
+    normalized = " ".join(tokens)
+    return "" if is_origin_placeholder(normalized) else normalized
 
 
 def normalize_warning_text(value: str) -> str:

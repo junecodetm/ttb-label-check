@@ -1,0 +1,16 @@
+# Streamlit's default primary colour is the same red the app uses for "does not
+# match". Reserving red for failures keeps the verdict colours meaningful, and a
+# navy primary action still clears WCAG AA against white button text.
+[theme]
+base = "light"
+primaryColor = "#1A4E8A"
+textColor = "#16202B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#EEF2F6"
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = false
+
+[browser]
+gatherUsageStats = false

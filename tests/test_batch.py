@@ -79,14 +79,14 @@ def _label_report(
 ) -> LabelReport:
     results = {
         field_name: FieldResult(
-            status=(
-                Status.NOT_EVALUATED if field_name in unevaluated_fields else status
-            ),
+            status=(Status.NOT_EVALUATED if field_name in unevaluated_fields else status),
             expected=expected_brand if field_name == "brand_name" else f"Expected {field_name}",
             extracted=(
                 None
                 if field_name in unevaluated_fields
-                else extracted_brand if field_name == "brand_name" else f"Read {field_name}"
+                else extracted_brand
+                if field_name == "brand_name"
+                else f"Read {field_name}"
             ),
             confidence=None if field_name in unevaluated_fields else confidence,
             crop=crop,
@@ -221,9 +221,7 @@ def test_results_sort_fail_review_not_evaluated_then_pass_with_errors_as_failure
     batch = _batch_module()
     results = [
         batch.BatchResult(filename="pass.png", report=_label_report(Status.PASS)),
-        batch.BatchResult(
-            filename="nothing-ran.png", report=_label_report(Status.NOT_EVALUATED)
-        ),
+        batch.BatchResult(filename="nothing-ran.png", report=_label_report(Status.NOT_EVALUATED)),
         batch.BatchResult(filename="review.png", report=_label_report(Status.REVIEW)),
         batch.BatchResult(filename="missing.png", error="Image not uploaded."),
         batch.BatchResult(filename="fail.png", report=_label_report(Status.FAIL)),
@@ -312,15 +310,12 @@ def test_batch_submission_renders_progress_table_export_and_crop_evidence(
     assert frame.loc[0, "Filename"] == "label.png"
     assert frame.loc[0, "Overall result"] == "PASS"
     assert frame.loc[0, "Checks that could not be run"] == (
-        "2 checks could not be run — Government warning bold text; "
-        "Government warning type size"
+        "2 checks could not be run — Government warning bold text; Government warning type size"
     )
     assert frame.loc[0, "Brand name — we read this as"] == "Brand 1"
     assert app.download_button[0].label == "Download all results as CSV"
     assert any("Completed 1 of 1 labels" in message.value for message in app.success)
-    assert any(
-        message.value == "2 checks could not be run — see below." for message in app.info
-    )
+    assert any(message.value == "2 checks could not be run — see below." for message in app.info)
     assert "Evidence for label.png" in [subheader.value for subheader in app.subheader]
     assert len(app.image) == len(REPORT_FIELDS)
 
@@ -362,9 +357,7 @@ def test_single_label_passing_overall_discloses_checks_that_could_not_run(
         message.value == "Overall: All completed checks match the application."
         for message in app.success
     )
-    assert [message.value for message in app.info] == [
-        "2 checks could not be run — see below."
-    ]
+    assert [message.value for message in app.info] == ["2 checks could not be run — see below."]
 
 
 def test_single_label_review_renders_the_rule_reason(

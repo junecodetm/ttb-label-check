@@ -24,6 +24,7 @@ from labelcheck.config import (
     ILLUMINATION_TILE_ROWS,
     MAX_DESKEW_ANGLE_DEGREES,
     MAX_GLARE_FRACTION,
+    MAX_IMAGE_PIXELS,
     MAX_TILE_ILLUMINATION_SPREAD,
     MIN_CONTRAST_RANGE,
     MIN_DESKEW_ANGLE_DEGREES,
@@ -89,12 +90,27 @@ def _validate_bgr_image(image: np.ndarray) -> None:
         raise ValueError("image must be a non-empty uint8 BGR array")
 
 
+# Align Pillow's own bomb guard with the configured ceiling. The explicit header
+# check below still does the rejecting: Pillow only raises above twice this value.
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+
+
+class _ImageTooLarge(Exception):
+    """Carry the size-guard rejection past the generic decode handler unchanged."""
+
+
 def _decode_with_exif(image_bytes: bytes) -> np.ndarray:
     if not isinstance(image_bytes, bytes) or not image_bytes:
         raise ValueError("image_bytes must contain an encoded image")
 
     try:
         with Image.open(io.BytesIO(image_bytes)) as source:
+            # Image.open only reads the header, so the declared size is known before
+            # any pixel buffer is allocated. Reject here rather than relying on
+            # Pillow's warn-then-error thresholds, which are only a factor of two apart.
+            width, height = source.size
+            if width * height > MAX_IMAGE_PIXELS:
+                raise _ImageTooLarge
             oriented = ImageOps.exif_transpose(source)
             if oriented.mode in {"RGBA", "LA"} or "transparency" in oriented.info:
                 foreground = oriented.convert("RGBA")
@@ -104,6 +120,10 @@ def _decode_with_exif(image_bytes: bytes) -> np.ndarray:
             else:
                 rgb = oriented.convert("RGB")
             rgb_array = np.array(rgb, dtype=np.uint8, copy=True)
+    except (_ImageTooLarge, Image.DecompressionBombError) as error:
+        # Pillow's bomb error is not an OSError subclass, so without this branch an
+        # oversized upload escapes the generic handler as an uncaught exception.
+        raise ValueError("image_bytes describes an image too large to decode") from error
     except (UnidentifiedImageError, OSError, ValueError) as error:
         raise ValueError("image_bytes could not be decoded") from error
 

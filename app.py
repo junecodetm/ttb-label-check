@@ -217,10 +217,22 @@ def _report_to_csv(report: LabelReport) -> bytes:
     return output.getvalue().encode("utf-8")
 
 
-def _render_report(report: LabelReport, elapsed_seconds: float) -> None:
+def _render_report(
+    report: LabelReport,
+    elapsed_seconds: float,
+    *,
+    image_bytes: bytes | None = None,
+) -> None:
     st.subheader("3. Review the results")
     st.caption(f"Checked in {elapsed_seconds:.1f} seconds.")
     _render_overall_status(report)
+    if image_bytes:
+        # The preview is context, not the verdict. A format Streamlit cannot render
+        # must never cost the agent the results themselves.
+        try:
+            st.image(image_bytes, caption="The label you uploaded", width="stretch")
+        except Exception:
+            pass
     st.write("Review each crop before making your decision.")
 
     for field_name, result in report.results.items():
@@ -422,6 +434,17 @@ def main() -> None:
         origin_country = st.text_input("Country of origin (optional)")
         submitted = st.form_submit_button("Check label", type="primary", width="stretch")
 
+    if submitted:
+        _handle_single_submission(
+            uploaded_file,
+            brand_name=brand_name,
+            class_type=class_type,
+            alcohol_content=alcohol_content,
+            net_contents=net_contents,
+            bottler=bottler,
+            origin_country=origin_country,
+        )
+
     st.divider()
     st.subheader("Have many labels to check?")
     st.write("Upload the images together and track progress while they are checked.")
@@ -429,8 +452,19 @@ def main() -> None:
         st.session_state[_BATCH_VIEW_KEY] = True
         st.rerun()
 
-    if not submitted:
-        return
+
+def _handle_single_submission(
+    uploaded_file: _UploadedFile | None,
+    *,
+    brand_name: str,
+    class_type: str,
+    alcohol_content: str,
+    net_contents: str,
+    bottler: str,
+    origin_country: str,
+) -> None:
+    """Keep the results directly beneath the button the agent just pressed."""
+
     if uploaded_file is None:
         st.error("Upload a PNG or JPEG label image, then choose Check label again.")
         return
@@ -470,7 +504,7 @@ def main() -> None:
         return
 
     try:
-        _render_report(report, elapsed_seconds)
+        _render_report(report, elapsed_seconds, image_bytes=image_bytes)
     except Exception:
         st.error(
             "The label was checked, but the results could not be displayed. Reload the "

@@ -19,7 +19,8 @@ def verify(
             extracted,
             None,
             crop,
-            "Country of origin does not apply to this domestic application.",
+            "Country of origin does not apply to this domestic application because the "
+            "application value is blank or placeholder text.",
         )
 
     normalized_extracted = normalize_origin_text(extracted) if extracted is not None else ""
