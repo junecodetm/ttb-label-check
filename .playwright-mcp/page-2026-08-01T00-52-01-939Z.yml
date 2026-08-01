@@ -1,0 +1,49 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e3]:
+    - banner [ref=f2e4]:
+      - link "Streamlit home" [ref=f2e5] [cursor=pointer]:
+        - /url: /
+        - heading [level=1] [ref=f2e6]
+      - navigation [ref=f2e11]:
+        - generic [ref=f2e12]:
+          - link "Explore" [ref=f2e13] [cursor=pointer]:
+            - /url: /explore
+          - link "Discuss" [ref=f2e14] [cursor=pointer]:
+            - /url: https://discuss.streamlit.io/
+      - generic [ref=f2e18]:
+        - button "Sign in" [ref=f2e19] [cursor=pointer]
+        - button "Sign up" [ref=f2e20] [cursor=pointer]
+    - generic [ref=f2e21]:
+      - main [ref=f2e23]:
+        - heading "Streamlit Community Cloud" [level=1] [ref=f2e25]
+        - generic [ref=f2e26]:
+          - paragraph [ref=f2e27]: A place for the community to publicly share
+          - paragraph [ref=f2e28]: Streamlit apps and learn from each other!
+        - list [ref=f2e30]:
+          - listitem [ref=f2e31]:
+            - button "Continue to sign-in" [ref=f2e32] [cursor=pointer]
+        - paragraph [ref=f2e35]:
+          - text: By signing in, I agree to the
+          - link "Terms of Service" [ref=f2e36] [cursor=pointer]:
+            - /url: https://streamlit.io/deployment-terms-of-use
+          - text: and understand Streamlit will process my personal information in accordance with its
+          - link "Privacy Notice" [ref=f2e37] [cursor=pointer]:
+            - /url: https://streamlit.io/privacy-policy
+          - text: .
+      - generic [ref=f2e38]:
+        - img "streamlit example app" [ref=f2e40]
+        - img "streamlit example app" [ref=f2e42]
+        - img "streamlit example app" [ref=f2e44]
+        - img "streamlit example app" [ref=f2e46]
+        - img "streamlit example app" [ref=f2e48]
+        - img "streamlit example app" [ref=f2e50]
+        - img "streamlit example app" [ref=f2e52]
+  - iframe [ref=f2e53]:
+    - generic [ref=f3e2]:
+      - generic [ref=f3e11]:
+        - heading [level=1] [ref=f3e12]:
+          - paragraph [ref=f3e13]: Status embed installed correctly
+        - generic [ref=f3e14]: This will be shown if an incident or maintenance is posted on your status page.
+        - link "View latest updates" [ref=f3e16] [cursor=pointer]:
+          - /url: https://www.streamlitstatus.com?utm_source=embed
+      - button [ref=f3e18] [cursor=pointer]

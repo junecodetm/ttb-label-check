@@ -291,3 +291,38 @@ def test_single_label_csv_lists_missing_checks_as_not_checked() -> None:
     assert rows_by_check["Brand name"][1] == "Matches"
     assert rows_by_check["Class or type"][1] == "Not checked"
     assert rows_by_check["Class or type"][4] == "This check could not be run."
+
+
+@pytest.mark.parametrize(
+    ("field_name", "status", "detail"),
+    [
+        (
+            "alcohol_content",
+            Status.REVIEW,
+            "Application proof 80 is inconsistent with its ABV.",
+        ),
+        (
+            "brand_name",
+            Status.REVIEW,
+            "Multiple brand-name candidates were located; agent review is required.",
+        ),
+        (
+            "net_contents",
+            Status.FAIL,
+            "Net contents differ by 250 mL after unit conversion.",
+        ),
+    ],
+)
+def test_single_label_non_pass_reason_reaches_the_user(
+    field_name: str,
+    status: Status,
+    detail: str,
+) -> None:
+    app_path = Path(__file__).parents[1] / "app.py"
+    spec = importlib.util.spec_from_file_location("labelcheck_test_app_detail", app_path)
+    assert spec is not None and spec.loader is not None
+    label_app = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(label_app)
+    result = FieldResult(status, "expected", "extracted", None, b"crop", detail)
+
+    assert label_app._user_detail(field_name, result) == detail

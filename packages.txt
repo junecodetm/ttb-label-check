@@ -1,1 +1,12 @@
+# apt packages for Streamlit Community Cloud (the Dockerfile installs these itself).
+#
+# libgl1 / libglib2.0-0: rapidocr-onnxruntime depends on the GUI opencv-python
+# distribution, which shares cv2 files with the headless wheel we pin and wins on
+# import, so cv2 asks for libGL.so.1 even though requirements.txt pins
+# opencv-python-headless. The Dockerfile solves this by force-reinstalling the
+# headless wheel last; Streamlit Cloud has no equivalent hook, so the library is
+# installed instead. Without these, `import cv2` fails at startup.
+libgl1
+libglib2.0-0
+# libgomp1: OpenMP runtime for ONNX Runtime.
 libgomp1

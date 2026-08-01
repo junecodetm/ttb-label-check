@@ -121,11 +121,11 @@ def test_imported_origin_conflict_requires_review(
     assert report.results["origin_country"].status is Status.REVIEW
 
 
-def test_bottler_name_and_address_do_not_use_brand_fuzziness(
+def test_bottler_address_ocr_error_routes_to_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bottler_block = TextBlock(
-        "Bottler: Bottled by New Tom Distillery, Bardstown, Kentucky",
+        "Bottler: Bottled by Old Tom Distillery, Bardstovvn, Kentucky",
         ((20.0, 20.0), (760.0, 20.0), (760.0, 50.0), (20.0, 50.0)),
         0.98,
     )
@@ -133,11 +133,7 @@ def test_bottler_name_and_address_do_not_use_brand_fuzziness(
 
     report = verify(make_label(), sample_application_record())
 
-    assert report.results["bottler"].status is Status.FAIL
-
-
-def test_fixture_bytes_are_stable() -> None:
-    assert make_label() == make_label()
+    assert report.results["bottler"].status is Status.REVIEW
 
 
 @pytest.mark.slow

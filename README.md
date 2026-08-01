@@ -6,7 +6,13 @@ app_port: 8501
 
 # Alcohol label verification
 
-Deployed URL: **TBD** (the orchestrator will add the HuggingFace Spaces URL after deployment)
+**Live app:** https://ttb-label-check.streamlit.app
+**Source:** https://github.com/junecodetm/ttb-label-check
+
+Hosted on Streamlit Community Cloud rather than HuggingFace Spaces: HF now requires a PRO
+subscription for any Space that runs a backend, and only `static` Spaces remain free. The
+`Dockerfile` in this repo is still current and verified — `docker build` succeeds and the
+container serves on 8501 — so the app can be redeployed to any container host unchanged.
 
 This is an offline tool that checks alcohol label artwork against the field values in a COLA application and shows a compliance agent what matches, what does not, and what still needs human judgment.
 

@@ -8,6 +8,7 @@ from labelcheck.config import (
     ABV_PATTERN,
     APOSTROPHE_CHARACTERS,
     BEVERAGE_CLASS_KEYWORDS,
+    BOTTLER_PREFIX_TOKEN_SEQUENCES,
     FUZZY_UNICODE_NORMALIZATION_FORM,
     GOVERNMENT_WARNING_PREFIX,
     LEGAL_SUFFIX_TOKEN_SEQUENCES,
@@ -80,6 +81,22 @@ def normalize_compact_fuzzy_text(value: str) -> str:
     """Treat lost OCR word boundaries as layout while preserving character order."""
 
     return normalize_fuzzy_text(value).replace(" ", "")
+
+
+def normalize_bottler_text(value: str) -> str:
+    """Remove bottling boilerplate before comparing a producer identity and address."""
+
+    tokens = normalize_identity_text(value).split()
+    for prefix in BOTTLER_PREFIX_TOKEN_SEQUENCES:
+        if tuple(tokens[: len(prefix)]) == prefix:
+            return " ".join(tokens[len(prefix) :])
+    return " ".join(tokens)
+
+
+def normalize_compact_bottler_text(value: str) -> str:
+    """Keep lost OCR word boundaries from turning an exact bottler into a mismatch."""
+
+    return normalize_bottler_text(value).replace(" ", "")
 
 
 def normalize_origin_text(value: str) -> str:

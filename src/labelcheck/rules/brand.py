@@ -1,6 +1,6 @@
 from rapidfuzz.fuzz import token_sort_ratio
 
-from labelcheck.config import FUZZY_PASS_THRESHOLD, FUZZY_REVIEW_THRESHOLD
+from labelcheck.config import EXACT_MATCH_CONFIDENCE, FUZZY_PASS_THRESHOLD, FUZZY_REVIEW_THRESHOLD
 from labelcheck.models import FieldResult, Status
 from labelcheck.normalize import normalize_compact_fuzzy_text, normalize_fuzzy_text
 
@@ -36,7 +36,7 @@ def verify(
         )
 
     if normalize_compact_fuzzy_text(extracted) == normalize_compact_fuzzy_text(expected):
-        confidence = 100.0
+        confidence = EXACT_MATCH_CONFIDENCE
     else:
         confidence = float(token_sort_ratio(normalized_extracted, normalized_expected))
     if confidence >= FUZZY_PASS_THRESHOLD:
@@ -44,9 +44,9 @@ def verify(
         detail = f"Brand matched after normalization (similarity {confidence:.1f})."
     elif confidence >= FUZZY_REVIEW_THRESHOLD:
         status = Status.REVIEW
-        detail = f"Brand similarity {confidence:.1f} is ambiguous and needs agent review."
+        detail = "Brand wording is close but not clearly the same; agent review is required."
     else:
         status = Status.FAIL
-        detail = f"Brand similarity {confidence:.1f} is below the accepted bands."
+        detail = "Brand wording does not match the application; agent review is required."
 
     return FieldResult(status, expected, extracted, confidence, crop, detail)

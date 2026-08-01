@@ -45,12 +45,18 @@ def test_brand_near_match_enters_the_review_band() -> None:
 
     assert result.status is Status.REVIEW
     assert 70.0 <= result.confidence < 90.0
+    assert result.detail == (
+        "Brand wording is close but not clearly the same; agent review is required."
+    )
 
 
 def test_brand_clear_mismatch_fails() -> None:
     result = verify("Stone Creek", "Old Tom Distillery")
 
     assert result.status is Status.FAIL
+    assert result.detail == (
+        "Brand wording does not match the application; agent review is required."
+    )
 
 
 def test_missing_brand_is_not_evaluated_never_passed() -> None:

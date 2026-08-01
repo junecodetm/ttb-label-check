@@ -367,6 +367,51 @@ def test_single_label_passing_overall_discloses_checks_that_could_not_run(
     ]
 
 
+def test_single_label_review_renders_the_rule_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(labelcheck.ocr, "warm", lambda: object())
+    detail = "Multiple brand-name candidates were located; agent review is required."
+
+    def fake_verify(image_bytes: bytes, application: object) -> LabelReport:
+        assert image_bytes == b"image"
+        passing_report = _label_report(
+            Status.PASS,
+            expected_brand=application.brand_name,
+            crop=np.zeros((4, 4, 3), dtype=np.uint8),
+        )
+        results = dict(passing_report.results)
+        results["brand_name"] = FieldResult(
+            Status.REVIEW,
+            application.brand_name,
+            "Read brand candidate",
+            None,
+            np.zeros((4, 4, 3), dtype=np.uint8),
+            detail,
+        )
+        return LabelReport(results)
+
+    monkeypatch.setattr(labelcheck.pipeline, "verify", fake_verify)
+    app_path = Path(__file__).parents[1] / "app.py"
+    app = AppTest.from_file(str(app_path), default_timeout=10).run()
+    app.get("file_uploader")[0].set_value(("label.png", b"image", "image/png"))
+    for index, value in enumerate(
+        (
+            "Brand 1",
+            "Whiskey",
+            "45% Alc./Vol. (90 Proof)",
+            "750 mL",
+            "Bottler 1",
+        )
+    ):
+        app.text_input[index].set_value(value)
+
+    next(button for button in app.button if button.label == "Check label").click().run()
+
+    assert not app.exception
+    assert detail in [message.value for message in app.markdown]
+
+
 def test_batch_submission_explains_missing_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(labelcheck.ocr, "warm", lambda: object())
     app_path = Path(__file__).parents[1] / "app.py"

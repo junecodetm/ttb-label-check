@@ -14,6 +14,16 @@ def test_decimal_abv_and_consistent_proof_pass() -> None:
     assert result.status is Status.PASS
 
 
+def test_whole_number_proof_rounding_within_abv_tolerance_passes() -> None:
+    result = verify(
+        "40.3% Alc./Vol. (81 Proof)",
+        "40.3% Alc./Vol.",
+        beverage_class="distilled spirits",
+    )
+
+    assert result.status is Status.PASS
+
+
 def test_spirits_abv_within_the_cfr_tolerance_passes() -> None:
     # 27 CFR 5.65 allows plus or minus 0.3 percentage points.
     result = verify("44.8% ABV", "45% ABV", beverage_class="distilled spirits")

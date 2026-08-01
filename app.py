@@ -63,11 +63,6 @@ _UNEVALUATED_EXPLANATIONS = {
     ),
 }
 
-_WARNING_DIFF_FIELDS = {
-    "government_warning",
-    "government_warning_prefix",
-}
-
 _STATIC_STYLES = """
 <style>
     .stButton > button,
@@ -138,7 +133,7 @@ def _display_read_value(value: str | None) -> str:
 def _user_detail(field_name: str, result: FieldResult) -> str | None:
     if result.status is Status.NOT_EVALUATED:
         return _UNEVALUATED_EXPLANATIONS.get(field_name, result.detail)
-    if field_name in _WARNING_DIFF_FIELDS and result.status is Status.FAIL:
+    if result.status in {Status.REVIEW, Status.FAIL}:
         return result.detail
     return None
 

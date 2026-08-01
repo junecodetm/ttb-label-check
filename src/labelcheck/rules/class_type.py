@@ -41,9 +41,13 @@ def verify(
         detail = f"Class/type matched after normalization (similarity {confidence:.1f})."
     elif confidence >= FUZZY_REVIEW_THRESHOLD:
         status = Status.REVIEW
-        detail = f"Class/type similarity {confidence:.1f} is ambiguous and needs agent review."
+        detail = (
+            "Class/type wording is close but not clearly the same; agent review is required."
+        )
     else:
         status = Status.FAIL
-        detail = f"Class/type similarity {confidence:.1f} is below the accepted bands."
+        detail = (
+            "Class/type wording does not match the application; agent review is required."
+        )
 
     return FieldResult(status, expected, extracted, confidence, crop, detail)

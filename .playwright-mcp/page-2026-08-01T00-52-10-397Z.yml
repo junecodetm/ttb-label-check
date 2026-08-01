@@ -1,0 +1,29 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e4]:
+    - generic [ref=f5e5]:
+      - heading "Sign in to Streamlit Community Cloud" [level=1] [ref=f5e7]
+      - generic [ref=f5e8]:
+        - generic [ref=f5e10]:
+          - generic [ref=f5e11]:
+            - generic [ref=f5e12]:
+              - generic [ref=f5e13]: Email
+              - textbox "Email" [ref=f5e16]:
+                - /placeholder: Your email address
+            - button "Continue with email" [ref=f5e17] [cursor=pointer]
+          - generic [ref=f5e19]: OR
+          - generic [ref=f5e20]:
+            - link "Continue with Google" [ref=f5e22] [cursor=pointer]:
+              - /url: ./api/login?provider=GoogleOAuth&state=3Au3UbIn_nPhjZueG8N7BAfBkNX7TpBW_YLEJwcVKpTCErn5bfyS7Mj-KJa2cKwSW7RY97BC3Hd6EfBnwfoBFcBJ4DVg8DJXH5ZhggxfY6RYOExsLbiQmXrqKheL3bRZxJQ7y_6KvRvygeGUVEFoRN7TbVzUhL_VLi227mws-sm_Jo_NvjtkHSgK_pX_NvG_QrmGvDDUnMBSOvlC8kEU6GSC6JjTGrQtD7AwIuZap6qDXjP2ksOZJbeTJo6DKDj92F-3qkJ_Li3qA0FpNNcCCQHdMgWLC-vzkaKhZKqkdEoy7O-B1_E1bVW5OPRi8qpkMj1SfbRjaR1BsIAbujkg6jfpUjr-tKnQy8kMYPuN6EUJkT9V_IUHEzBmbB2Ury4LPOx3jjWKUp3FTJBfkGXge7SMfW0oMWdWtKYagRKlYOKHit46QvEb2pWPeMWduLch94piMKWx5pr3tFYmRoak0eS22xxqfW5CtRqlIAqdpCM%3D&redirect_uri=https%3A%2F%2Flogin.streamlit.io%2Fapi%2Fv1%2Flogin%2Fshare%2Fcallback&client_id=project_01EZ8RPVCZQ40ZGBV6Y87N8V8V&source=signin&authorization_session_id=01KYXCX4KDPN63RRDESCJR5CYN
+            - link "Continue with GitHub" [ref=f5e31] [cursor=pointer]:
+              - /url: ./api/login?provider=GitHubOAuth&state=3Au3UbIn_nPhjZueG8N7BAfBkNX7TpBW_YLEJwcVKpTCErn5bfyS7Mj-KJa2cKwSW7RY97BC3Hd6EfBnwfoBFcBJ4DVg8DJXH5ZhggxfY6RYOExsLbiQmXrqKheL3bRZxJQ7y_6KvRvygeGUVEFoRN7TbVzUhL_VLi227mws-sm_Jo_NvjtkHSgK_pX_NvG_QrmGvDDUnMBSOvlC8kEU6GSC6JjTGrQtD7AwIuZap6qDXjP2ksOZJbeTJo6DKDj92F-3qkJ_Li3qA0FpNNcCCQHdMgWLC-vzkaKhZKqkdEoy7O-B1_E1bVW5OPRi8qpkMj1SfbRjaR1BsIAbujkg6jfpUjr-tKnQy8kMYPuN6EUJkT9V_IUHEzBmbB2Ury4LPOx3jjWKUp3FTJBfkGXge7SMfW0oMWdWtKYagRKlYOKHit46QvEb2pWPeMWduLch94piMKWx5pr3tFYmRoak0eS22xxqfW5CtRqlIAqdpCM%3D&redirect_uri=https%3A%2F%2Flogin.streamlit.io%2Fapi%2Fv1%2Flogin%2Fshare%2Fcallback&client_id=project_01EZ8RPVCZQ40ZGBV6Y87N8V8V&source=signin&authorization_session_id=01KYXCX4KDPN63RRDESCJR5CYN
+        - paragraph [ref=f5e36]:
+          - text: Don't have an account?
+          - link "Sign up" [ref=f5e37] [cursor=pointer]:
+            - /url: /sign-up?state=3Au3UbIn_nPhjZueG8N7BAfBkNX7TpBW_YLEJwcVKpTCErn5bfyS7Mj-KJa2cKwSW7RY97BC3Hd6EfBnwfoBFcBJ4DVg8DJXH5ZhggxfY6RYOExsLbiQmXrqKheL3bRZxJQ7y_6KvRvygeGUVEFoRN7TbVzUhL_VLi227mws-sm_Jo_NvjtkHSgK_pX_NvG_QrmGvDDUnMBSOvlC8kEU6GSC6JjTGrQtD7AwIuZap6qDXjP2ksOZJbeTJo6DKDj92F-3qkJ_Li3qA0FpNNcCCQHdMgWLC-vzkaKhZKqkdEoy7O-B1_E1bVW5OPRi8qpkMj1SfbRjaR1BsIAbujkg6jfpUjr-tKnQy8kMYPuN6EUJkT9V_IUHEzBmbB2Ury4LPOx3jjWKUp3FTJBfkGXge7SMfW0oMWdWtKYagRKlYOKHit46QvEb2pWPeMWduLch94piMKWx5pr3tFYmRoak0eS22xxqfW5CtRqlIAqdpCM%3D&redirect_uri=https%3A%2F%2Flogin.streamlit.io%2Fapi%2Fv1%2Flogin%2Fshare%2Fcallback&authorization_session_id=01KYXCX4KDPN63RRDESCJR5CYN
+    - generic [ref=f5e38]:
+      - link "Terms of Service" [ref=f5e39] [cursor=pointer]:
+        - /url: https://streamlit.io/terms-of-use
+      - text: and
+      - link "Privacy Policy" [ref=f5e40] [cursor=pointer]:
+        - /url: https://streamlit.io/privacy-policy
+  - alert [ref=f5e41]

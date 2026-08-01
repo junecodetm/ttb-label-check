@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 
 from labelcheck import ocr, preprocess
 from labelcheck.config import (
@@ -11,7 +10,7 @@ from labelcheck.config import (
 from labelcheck.extract import ExtractionState, FieldCandidate, extract_candidates
 from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
 from labelcheck.normalize import normalize_origin_text
-from labelcheck.rules import alcohol, brand, class_type, net_contents, origin, warning
+from labelcheck.rules import alcohol, bottler, brand, class_type, net_contents, origin, warning
 
 
 def _ambiguous_result(
@@ -52,19 +51,6 @@ def _evaluate_warning_rule(
     return rule(candidate.value, crop=candidate.crop)
 
 
-def _rename_bottler_detail(result: FieldResult) -> FieldResult:
-    detail = result.detail
-    for source, replacement in (
-        ("Country of origin", "Bottler"),
-        ("country of origin", "bottler"),
-        ("Required import origin text", "Bottler text"),
-        ("import application", "application"),
-        ("domestic application", "application"),
-    ):
-        detail = detail.replace(source, replacement, 1)
-    return replace(result, detail=detail)
-
-
 def verify(image_bytes: bytes, expected: ApplicationRecord) -> LabelReport:
     """Run one local OCR pass, then route evidence through every existing field rule."""
 
@@ -102,8 +88,8 @@ def verify(image_bytes: bytes, expected: ApplicationRecord) -> LabelReport:
         "net-contents",
         net_contents.verify,
     )
-    results["bottler"] = _rename_bottler_detail(
-        _evaluate_binary_rule(candidates["bottler"], expected.bottler, "bottler", origin.verify)
+    results["bottler"] = _evaluate_binary_rule(
+        candidates["bottler"], expected.bottler, "bottler", bottler.verify
     )
     origin_candidate = candidates["origin_country"]
     if origin_candidate.state is ExtractionState.AMBIGUOUS:

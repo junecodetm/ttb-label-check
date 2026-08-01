@@ -6,6 +6,7 @@ from labelcheck.config import FLUID_OUNCE_TO_ML, GOVERNMENT_WARNING
 from labelcheck.normalize import (
     canonical_beverage_class,
     collapse_whitespace,
+    normalize_bottler_text,
     normalize_compact_fuzzy_text,
     normalize_fuzzy_text,
     normalize_identity_text,
@@ -72,6 +73,33 @@ def test_compact_fuzzy_text_removes_only_word_boundaries() -> None:
 
 def test_identity_text_does_not_drop_words_that_look_like_legal_suffixes() -> None:
     assert normalize_identity_text("Limited, Inc.") == "limited inc"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Bottled by Stone's Throw Distillery",
+        "Produced and bottled by Stone's Throw Distillery",
+        "Distilled and bottled by Stone's Throw Distillery",
+        "Bottled for Stone's Throw Distillery",
+    ],
+)
+def test_bottler_text_removes_configured_label_boilerplate(raw: str) -> None:
+    assert normalize_bottler_text(raw) == "stones throw distillery"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Bottled by Acme Distillery, Denver, CO", "acme distillery denver co"),
+        ("Bottled by Acme Distillery, LLC", "acme distillery llc"),
+    ],
+)
+def test_bottler_text_preserves_address_and_legal_suffix_tokens(
+    raw: str,
+    expected: str,
+) -> None:
+    assert normalize_bottler_text(raw) == expected
 
 
 @pytest.mark.parametrize(

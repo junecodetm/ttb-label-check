@@ -19,12 +19,18 @@ def test_class_type_near_match_enters_the_review_band() -> None:
 
     assert result.status is Status.REVIEW
     assert 70.0 <= result.confidence < 90.0
+    assert result.detail == (
+        "Class/type wording is close but not clearly the same; agent review is required."
+    )
 
 
 def test_class_type_clear_mismatch_fails() -> None:
     result = verify("Cabernet Sauvignon", "Kentucky Straight Bourbon Whiskey")
 
     assert result.status is Status.FAIL
+    assert result.detail == (
+        "Class/type wording does not match the application; agent review is required."
+    )
 
 
 def test_missing_class_type_is_not_evaluated() -> None:

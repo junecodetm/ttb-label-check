@@ -1,0 +1,54 @@
+- generic [ref=f9e2]:
+  - generic [ref=f9e3]:
+    - link "Skip to content" [ref=f9e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=f9e6]
+  - main [ref=f9e9]:
+    - generic [ref=f9e10]:
+      - generic [ref=f9e12]:
+        - img "Streamlit Community Cloud logo" [ref=f9e14]
+        - paragraph [ref=f9e15]:
+          - text: Sign in to
+          - strong [ref=f9e16]: GitHub
+          - text: to continue to
+          - strong [ref=f9e17]: Streamlit Community Cloud
+      - generic [ref=f9e18]:
+        - generic [ref=f9e19]:
+          - generic [ref=f9e20]:
+            - generic [ref=f9e21]: Username or email address
+            - textbox "Username or email address" [active] [ref=f9e22]
+          - generic [ref=f9e23]:
+            - generic [ref=f9e24]: Password
+            - textbox "Password" [ref=f9e25]
+            - link "Forgot password?" [ref=f9e26] [cursor=pointer]:
+              - /url: /password_reset
+          - button "Sign in" [ref=f9e28] [cursor=pointer]
+        - generic [ref=f9e29]:
+          - generic [ref=f9e30]: or
+          - button "Continue with Google" [ref=f9e33] [cursor=pointer]
+          - button "Continue with Apple" [ref=f9e37] [cursor=pointer]
+      - generic [ref=f9e40]:
+        - paragraph [ref=f9e42]:
+          - text: New to GitHub?
+          - link "Create an account" [ref=f9e43] [cursor=pointer]:
+            - /url: /join?return_to=%2Flogin%2Foauth%2Fauthorize%3Fclient_id%3D4a7b0029fbb9299bc29f%26redirect_uri%3Dhttps%253A%252F%252Fauth.workos.com%252Fsso%252Foauth%252Fgithub%252FVnfnnslxH0IzSyKE3C1hK0C4t%252Fcallback%26scope%3Duser%253Aemail%26state%3DeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImEyOWEzZmRjIn0.eyJhcGkiOiJ1c2VyX21hbmFnZW1lbnQiLCJyZWRpcmVjdF91cmkiOiJodHRwczovL2F1dGhraXQuc3RyZWFtbGl0LmlvL2FwaS9jYWxsYmFjayIsInN0YXRlIjoiZXlKaGJHY2lPaUpJVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0lzSW10cFpDSTZJak5oTmpKa1kySmxJbjAuZXlKemRHRjBaU0k2SWpOQmRUTlZZa2x1WDI1UWFHcGFkV1ZIT0U0M1FrRm1RbXRPV0RkVWNFSlhYMWxNUlVwM1kxWkxjRlJEUlhKdU5XSm1lVk0zVFdvdFMwcGhNbU5MZDFOWE4xSlpPVGRDUXpOSVpEWkZaa0p1ZDJadlFrWmpRa28wUkZabk9FUktXRWcxV21oblozaG1XVFpTV1U5RmVITk1ZbWxSYlZoeWNVdG9aVXd6WWxKYWVFcFJOM2xmTmt0MlVuWjVaMlZIVlZaRlJtOVNUamRVWWxaNlZXaE1YMVpNYVRJeU4yMTNjeTF6YlY5S2IxOU9kbXAwYTBoVFowdGZjRmhmVG5aSFgxRnliVWQyUkVSVmJrMUNVMDkyYkVNNGEwVlZOa2RUUXpaS2FsUkhjbEYwUkRkQmQwbDFXbUZ3Tm5GRVdHcFFNbXR6VDFwS1ltVlVTbTgyUkV0RWFqa3lSaTB6Y1d0S1gweHBNM0ZCTUVad1RrNWpRME5SU0dSTloxZE1ReTEyZW10aFMyaGFTM0ZyWkVWdmVUZFBMVUl4WDBVeFlsWlhOVTlRVW1rNGNYQnJUV294VTJaaVVtcGhVakZDYzBsQlluVnFhMmMyYW1ad1ZXcHlMWFJMYmxGNU9HdE5XVkIxVGpaRlZVcHJWRGxXWDBsVlNFVjZRbTFpUWpKVmNuazBURkJQZUROcWFsZExWWEF6UmxSS1FtWnJSMWhuWlRkVFRXWlhNRzlOVjJSWGRFdFpZV2RTUzJ4WlQwdElhWFEwTmxGMlJXSXljRmRRWlUxWFpIVk1ZMmc1TkhCcFRVdFhlRFZ3Y2pOMFJsbHRVbTloYXpCbFV6SXllSGh4WmxjMVEzUlNjV3hKUVhGa2NFTk5QU0lzSW5KbFpHbHlaV04wWDNWeWFTSTZJbWgwZEhCek9pOHZiRzluYVc0dWMzUnlaV0Z0YkdsMExtbHZMMkZ3YVM5Mk1TOXNiMmRwYmk5emFHRnlaUzlqWVd4c1ltRmpheUlzSW1GMWRHaHZjbWw2WVhScGIyNWZjMlZ6YzJsdmJsOXBaQ0k2SWpBeFMxbFlRMWcwUzBSUVRqWXpVbEpFUlZORFNsSTFRMWxPSWl3aWMyOTFjbU5sSWpvaWMybG5ibWx1SWl3aVpHVjJhV05sWDJacGJtZGxjbkJ5YVc1MElqb2lOelV5TURBM1kyRTVOR014TVdJeFpHVTROVE16T0RFNU1HUTNZemc0TXpOaVlXVXpOV1ZoWXpWa1pqaGxaRFl4TlRKaFpUWXhZakJoTTJJellUVXdNQ0lzSW5OamNtVmxibDlvYVc1MElqb2ljMmxuYmkxcGJpSXNJbkJ5YjNacFpHVnlJam9pUjJsMFNIVmlUMEYxZEdnaUxDSnViMjVqWlNJNklrWm1ORTVsTmk5Mk5FOURkMHd4VHpoS1N6VlRWV2RzV1VWWVFqVlRVekZ0VVRBemFqQjFZVnBoUW04OUlpd2ljMmxuYm1Gc2MxOXBaQ0k2SWpBeFMxbFlRMWhGVGtFelMwWldWREk0UVZRd1VqWTJVemxMSWl3aWFXRjBJam94TnpnMU5UUTFOVE00ZlEuWDVFT2dTYmMwa1dObHpzdHphMGtNbE15NXM1R240Z0VkcTlSTHBfOHBTVSIsImlhdCI6MTc4NTU0NTUzOSwiZXhwIjoxNzg1NTQ2NDM5fQ.sZlpfmPXJbxan57GdIw_Xt_TymrONkiM-aF8A8lyKMg&source=oauth
+        - paragraph [ref=f9e45]:
+          - button "Sign in with a passkey" [ref=f9e46] [cursor=pointer]
+  - contentinfo [ref=f9e49]:
+    - list [ref=f9e50]:
+      - listitem [ref=f9e51]:
+        - link "Terms" [ref=f9e52] [cursor=pointer]:
+          - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+      - listitem [ref=f9e53]:
+        - link "Privacy" [ref=f9e54] [cursor=pointer]:
+          - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+      - listitem [ref=f9e55]:
+        - link "Docs" [ref=f9e56] [cursor=pointer]:
+          - /url: https://docs.github.com
+      - listitem [ref=f9e57]:
+        - link "Contact GitHub Support" [ref=f9e58] [cursor=pointer]:
+          - /url: https://support.github.com
+      - listitem [ref=f9e59]:
+        - button "Manage cookies" [ref=f9e61] [cursor=pointer]
+      - listitem [ref=f9e62]:
+        - button "Do not share my personal information" [ref=f9e64] [cursor=pointer]

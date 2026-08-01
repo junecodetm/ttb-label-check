@@ -29,6 +29,12 @@ ORIGIN_PREFIX_TOKEN_SEQUENCES = (
     ("produced", "in"),
     ("imported", "from"),
 )
+BOTTLER_PREFIX_TOKEN_SEQUENCES = (
+    ("produced", "and", "bottled", "by"),
+    ("distilled", "and", "bottled", "by"),
+    ("bottled", "by"),
+    ("bottled", "for"),
+)
 FUZZY_UNICODE_NORMALIZATION_FORM = "NFKC"
 APOSTROPHE_CHARACTERS = frozenset(("'", "’", "ʼ"))
 
@@ -59,7 +65,13 @@ MAX_ABV_PERCENT = Decimal("100")
 MIN_PROOF = Decimal("0")
 MAX_PROOF = Decimal("200")
 PROOF_MULTIPLIER = Decimal("2")
-PROOF_ABV_TOLERANCE = Decimal("0")
+# Proof is defined as exactly twice the alcohol-by-volume percentage (27 CFR 5.1:
+# "The ethyl alcohol content of a liquid at 60 degrees Fahrenheit, stated as twice
+# the percentage of ethyl alcohol by volume."), so the printed proof and ABV should
+# agree exactly. This tolerance is the proof-space image of the +/-0.3 percentage
+# point ABV tolerance in 27 CFR 5.65, and it also absorbs the whole-number rounding
+# labels conventionally apply to the printed proof.
+PROOF_ABV_TOLERANCE = Decimal("0.6")  # 2 x the 0.3-point ABV tolerance, 27 CFR 5.65
 
 # TTB tolerances for labeled alcohol content, in PERCENTAGE POINTS of ABV. Retrieved
 # 2026-07-31 from the eCFR versioner API (the same publisher and endpoint used for the

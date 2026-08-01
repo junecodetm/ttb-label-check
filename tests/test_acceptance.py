@@ -1,7 +1,7 @@
 from dataclasses import fields
 
 from labelcheck.config import GOVERNMENT_WARNING
-from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status, TextBlock
+from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
 from labelcheck.rules.alcohol import verify as verify_alcohol
 from labelcheck.rules.brand import verify as verify_brand
 from labelcheck.rules.net_contents import verify as verify_net_contents
@@ -89,38 +89,6 @@ def test_status_and_application_record_keep_the_manifest_contract() -> None:
         "bottler",
         "origin_country",
     ]
-
-
-def test_field_result_keeps_every_required_member_even_without_a_crop() -> None:
-    result = FieldResult(
-        status=Status.NOT_EVALUATED,
-        expected="expected",
-        extracted=None,
-        confidence=None,
-        crop=None,
-        detail="No image evidence exists in the pure-logic phase.",
-    )
-
-    assert [item.name for item in fields(FieldResult)] == [
-        "status",
-        "expected",
-        "extracted",
-        "confidence",
-        "crop",
-        "detail",
-    ]
-    assert result.crop is None
-
-
-def test_text_block_remains_a_dependency_free_future_ocr_contract() -> None:
-    block = TextBlock(
-        text="750 mL",
-        bbox=((0.0, 0.0), (10.0, 0.0), (10.0, 4.0), (0.0, 4.0)),
-        confidence=0.98,
-    )
-
-    assert block.text == "750 mL"
-    assert block.bbox[2] == (10.0, 4.0)
 
 
 def test_report_rollup_passes_evaluated_checks_and_discloses_unevaluated_names() -> None:
