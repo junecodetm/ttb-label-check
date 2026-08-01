@@ -465,12 +465,18 @@ class _RegistryHTMLParser(HTMLParser):
 
     def lines(self) -> list[str]:
         return [
-            line for raw_line in "".join(self.parts).splitlines() if (line := _one_line(raw_line))
+            line
+            for raw_line in "".join(self.parts).splitlines()
+            if (line := _compact_text(raw_line))
         ]
 
 
+def _compact_text(value: object) -> str:
+    return " ".join(str(value).replace("\xa0", " ").split())
+
+
 def _one_line(value: object) -> str:
-    return " ".join(str(value).replace("\xa0", " ").split()) or "unknown error"
+    return _compact_text(value) or "unknown error"
 
 
 def _positive_int(value: str) -> int:
@@ -697,7 +703,7 @@ def _plant_address(lines: Sequence[str]) -> str:
 
 
 def _origin_country(origin_code: str) -> str:
-    normalized = _one_line(origin_code).upper()
+    normalized = _compact_text(origin_code).upper()
     return "" if not origin_code or normalized in DOMESTIC_ORIGINS else origin_code
 
 

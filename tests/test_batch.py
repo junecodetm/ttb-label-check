@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import importlib
 import io
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -582,3 +583,24 @@ def test_shipped_sample_manifest_parses_and_names_files_that_exist() -> None:
     assert rows
     for row in rows:
         assert (samples_directory / row.filename).is_file()
+
+
+def test_sample_labels_are_committed_not_just_present_on_disk() -> None:
+    """.gitignore excludes *.png; the shipped demo assets must be the exception.
+
+    Without this, the samples work locally and the deployed app's sample button
+    fails, which is exactly the surface an evaluator sees first.
+    """
+
+    repository_root = Path(__file__).parents[1]
+    tracked = subprocess.run(
+        ["git", "ls-files", "samples/"],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+
+    manifest_bytes = (repository_root / "samples" / "application-values.csv").read_bytes()
+    for row in _batch_module().parse_manifest(manifest_bytes):
+        assert f"samples/{row.filename}" in tracked, f"{row.filename} is not committed"

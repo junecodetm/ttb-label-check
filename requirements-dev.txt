@@ -6,3 +6,6 @@
 
 pytest>=7.0    # pythonpath ini option requires 7.0+
 ruff
+# tools/fetch_real_labels.py only. ttbonline.gov omits its intermediate certificate,
+# so OpenSSL cannot build the chain; truststore verifies via the OS store instead.
+truststore
