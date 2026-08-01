@@ -35,14 +35,20 @@ Run the checks with:
 .venv/bin/ruff check .
 ```
 
-To build and run the same Docker image used by the HuggingFace Space:
+To build and run the container:
 
 ```bash
 docker build -t labelcheck .
 docker run --rm -p 8501:8501 labelcheck
 ```
 
-Open `http://localhost:8501`. The Space metadata at the top of this file selects the Docker SDK and routes port 8501.
+Open `http://localhost:8501`. The image pins Python 3.11 to match the venv and runs as a non-root user; the OCR model weights ship inside the `rapidocr-onnxruntime` wheel, so nothing is downloaded at runtime and a cold start does not pay for a model fetch.
+
+### Deployment note
+
+`packages.txt` installs `libgl1`, `libglib2.0-0` and `libgomp1` for the Streamlit Community Cloud deploy. It exists because `rapidocr-onnxruntime` depends on the GUI `opencv-python` distribution, which shares its `cv2` files with the headless wheel pinned in `requirements.txt` and wins on import — so `import cv2` asks for `libGL.so.1` regardless of the pin. The `Dockerfile` solves this at the source by force-reinstalling the headless wheel last; Streamlit Cloud has no equivalent hook, so the system library is installed instead.
+
+Keep `packages.txt` a bare newline-separated list. Streamlit Cloud passes it directly to `apt`, which treats a `#` comment line as a package name and aborts the whole install with `E: Unsupported file / given on commandline`.
 
 ## Approach
 
