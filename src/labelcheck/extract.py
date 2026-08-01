@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -14,6 +14,7 @@ from labelcheck.config import (
     BEVERAGE_CLASS_KEYWORDS,
     BOTTLER_MAX_CONTINUATION_LINES,
     BOTTLER_MAX_LINE_GAP_MULTIPLIER,
+    BOTTLER_PREFIX_TOKEN_SEQUENCES,
     BRAND_AMBIGUITY_HEIGHT_RATIO,
     BRAND_MAX_CHARACTERS,
     BRAND_MULTILINE_MAX_GAP_RATIO,
@@ -123,8 +124,16 @@ _NET_CONTENT_CANDIDATE = re.compile(
     re.IGNORECASE,
 )
 _BOTTLER_SIGNAL = re.compile(
-    r"\b(?:bottled|distilled|produced|imported|brewed|vinted|cellared|manufactured"
-    r"|packaged|canned|blended|prepared|made)\s+(?:by|for)\b",
+    r"\b(?:"
+    + "|".join(
+        re.escape(" ".join(tokens))
+        for tokens in sorted(
+            BOTTLER_PREFIX_TOKEN_SEQUENCES,
+            key=lambda tokens: len(" ".join(tokens)),
+            reverse=True,
+        )
+    )
+    + r")\b",
     re.IGNORECASE,
 )
 _ORIGIN_SIGNAL = re.compile(
@@ -263,31 +272,26 @@ def _explicit_selections(lines: Sequence[_Line], field_name: str) -> list[_Selec
     return selections
 
 
+def _starts_another_warning_selection(line: _Line) -> bool:
+    return bool(_ANY_EXPLICIT_PATTERN.match(line.text) or _WARNING_ANCHOR.search(line.text))
+
+
 def _warning_selections(lines: Sequence[_Line]) -> list[_Selection]:
     target_words = len(GOVERNMENT_WARNING.split())
     anchored: list[_Selection] = []
     for start, line in enumerate(lines):
         if _WARNING_ANCHOR.search(line.text) is None:
             continue
-        indices = [start]
-        word_count = len(line.text.split())
-        previous = line
-        for index in range(start + 1, len(lines)):
-            if word_count >= target_words:
-                break
-            following = lines[index]
-            gap = following.top - previous.bottom
-            if gap > max(previous.height, following.height) * WARNING_MAX_LINE_GAP_MULTIPLIER:
-                break
-            if _ANY_EXPLICIT_PATTERN.match(following.text) or _WARNING_ANCHOR.search(
-                following.text
-            ):
-                break
-            indices.append(index)
-            word_count += len(following.text.split())
-            previous = following
-        value = "\n".join(lines[index].text for index in indices)
-        anchored.append(_Selection(value, tuple(indices)))
+        anchored.append(
+            _extend_with_continuation_lines(
+                lines,
+                _Selection(line.text, (start,)),
+                max_continuation_lines=None,
+                max_line_gap_multiplier=WARNING_MAX_LINE_GAP_MULTIPLIER,
+                is_boundary=_starts_another_warning_selection,
+                target_word_count=target_words,
+            )
+        )
 
     if anchored:
         return anchored
@@ -351,6 +355,7 @@ def _bottler_selections(lines: Sequence[_Line]) -> list[_Selection]:
             selection,
             max_continuation_lines=BOTTLER_MAX_CONTINUATION_LINES,
             max_line_gap_multiplier=BOTTLER_MAX_LINE_GAP_MULTIPLIER,
+            is_boundary=_starts_a_different_field,
         )
         for selection in selections
     ]
@@ -373,25 +378,34 @@ def _extend_with_continuation_lines(
     lines: Sequence[_Line],
     selection: _Selection,
     *,
-    max_continuation_lines: int,
+    max_continuation_lines: int | None,
     max_line_gap_multiplier: float,
+    is_boundary: Callable[[_Line], bool],
+    target_word_count: int | None = None,
 ) -> _Selection:
     """Join the wrapped lines of one value so a split address or origin reads whole."""
 
     indices = list(selection.line_indices)
     values = [selection.value]
+    word_count = len(selection.value.split())
     previous = lines[indices[-1]]
     for index in range(indices[-1] + 1, len(lines)):
-        if len(indices) - len(selection.line_indices) >= max_continuation_lines:
+        if target_word_count is not None and word_count >= target_word_count:
+            break
+        if (
+            max_continuation_lines is not None
+            and len(indices) - len(selection.line_indices) >= max_continuation_lines
+        ):
             break
         following = lines[index]
         gap = following.top - previous.bottom
         if gap > max(previous.height, following.height) * max_line_gap_multiplier:
             break
-        if _starts_a_different_field(following):
+        if is_boundary(following):
             break
         indices.append(index)
         values.append(following.text.strip())
+        word_count += len(following.text.split())
         previous = following
     return _Selection("\n".join(values), tuple(indices))
 
@@ -415,6 +429,7 @@ def _origin_selections(lines: Sequence[_Line]) -> list[_Selection]:
             selection,
             max_continuation_lines=ORIGIN_MAX_CONTINUATION_LINES,
             max_line_gap_multiplier=ORIGIN_MAX_LINE_GAP_MULTIPLIER,
+            is_boundary=_starts_a_different_field,
         )
         if not normalize_origin_text(selection.value)
         else selection

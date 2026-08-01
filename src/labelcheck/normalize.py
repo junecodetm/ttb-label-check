@@ -109,18 +109,22 @@ def is_origin_placeholder(value: str) -> bool:
     return canonical in ORIGIN_PLACEHOLDER_VALUES
 
 
+def has_origin_value(value: str | None) -> bool:
+    """Keep the import-presence decision exact and centralized outside rule modules."""
+
+    return (
+        value is not None and bool(collapse_whitespace(value)) and not is_origin_placeholder(value)
+    )
+
+
 def normalize_origin_text(value: str) -> str:
     """Remove standard label boilerplate before comparing a manifest country value."""
 
-    if is_origin_placeholder(value):
-        return ""
     tokens = normalize_identity_text(value).split()
     for prefix in ORIGIN_PREFIX_TOKEN_SEQUENCES:
         if tuple(tokens[: len(prefix)]) == prefix:
-            normalized = " ".join(tokens[len(prefix) :])
-            return "" if is_origin_placeholder(normalized) else normalized
-    normalized = " ".join(tokens)
-    return "" if is_origin_placeholder(normalized) else normalized
+            return " ".join(tokens[len(prefix) :])
+    return " ".join(tokens)
 
 
 def normalize_warning_text(value: str) -> str:

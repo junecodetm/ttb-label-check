@@ -6,6 +6,7 @@ from labelcheck.config import FLUID_OUNCE_TO_ML, GOVERNMENT_WARNING
 from labelcheck.normalize import (
     canonical_beverage_class,
     collapse_whitespace,
+    is_origin_placeholder,
     normalize_bottler_text,
     normalize_compact_fuzzy_text,
     normalize_fuzzy_text,
@@ -118,15 +119,37 @@ def test_origin_text_removes_only_configured_label_boilerplate(raw: str, expecte
 
 @pytest.mark.parametrize(
     "raw",
-    ["N/A", "n/a", "NA", "none", "None", "-", "--", r"n\a", "not applicable", "domestic"],
+    [
+        "N/A",
+        "n/a",
+        "NA",
+        "none",
+        "None",
+        "-",
+        "--",
+        r"n\a",
+        "not applicable",
+        "domestic",
+    ],
 )
-def test_origin_placeholder_values_normalize_as_missing(raw: str) -> None:
-    assert normalize_origin_text(raw) == ""
+def test_origin_placeholder_detection_matches_listed_values(raw: str) -> None:
+    assert is_origin_placeholder(raw)
 
 
-@pytest.mark.parametrize("raw", ["USA", "United States"])
-def test_real_country_names_are_not_origin_placeholders(raw: str) -> None:
-    assert normalize_origin_text(raw)
+@pytest.mark.parametrize(
+    "raw",
+    ["USA", "United States", "N/A USA", "?", "...", "/", "@", "Product of N/A"],
+)
+def test_unlisted_origin_values_are_not_placeholders(raw: str) -> None:
+    assert not is_origin_placeholder(raw)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("USA", "usa"), ("United States", "united states"), ("N/A USA", "n a usa")],
+)
+def test_real_country_names_keep_their_origin_value(raw: str, expected: str) -> None:
+    assert normalize_origin_text(raw) == expected
 
 
 @pytest.mark.parametrize("normalizer", [normalize_fuzzy_text, normalize_identity_text])

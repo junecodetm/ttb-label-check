@@ -8,6 +8,7 @@ from fixture_factory import make_label, sample_application_record
 from PIL import Image
 
 from labelcheck import preprocess as preprocess_module
+from labelcheck.config import MAX_IMAGE_PIXELS
 from labelcheck.models import FieldResult, LabelReport, Status, TextBlock
 from labelcheck.ocr import OcrEngine, OcrError, get_engine, warm
 from labelcheck.pipeline import verify
@@ -372,3 +373,36 @@ def test_pillow_decompression_bomb_error_is_converted_not_propagated(
 
 def test_ordinary_sized_label_still_decodes_after_the_size_guard() -> None:
     assert preprocess_image(_png_bytes(300, 200)).shape[2] == 3
+
+
+def test_pipeline_rejects_a_decompression_bomb_as_an_image_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An undecodable image is an image problem, so it stays a ValueError."""
+
+    bomb = _png_bytes(64, 64)
+    assert Image.MAX_IMAGE_PIXELS == MAX_IMAGE_PIXELS
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 16)
+
+    with pytest.raises(ValueError, match="too large to decode") as captured:
+        verify(bomb, sample_application_record())
+
+    assert isinstance(captured.value.__cause__, Image.DecompressionBombError)
+
+
+def test_pipeline_surfaces_ocr_failure_as_the_engine_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Engine failure keeps its own type, so callers can tell it from a bad upload."""
+
+    backend_error = OcrError("OCR inference failed")
+
+    def fail_ocr(_image: np.ndarray) -> list[TextBlock]:
+        raise backend_error
+
+    monkeypatch.setattr("labelcheck.pipeline.ocr.recognize", fail_ocr)
+
+    with pytest.raises(OcrError) as captured:
+        verify(make_label(), sample_application_record())
+
+    assert captured.value is backend_error

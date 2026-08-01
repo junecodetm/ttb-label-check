@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from labelcheck.config import GOVERNMENT_WARNING
-from labelcheck.extract import FIELD_NAMES, ExtractionState, extract_candidates
+from labelcheck.extract import _BOTTLER_SIGNAL, FIELD_NAMES, ExtractionState, extract_candidates
 from labelcheck.models import TextBlock
 from labelcheck.normalize import normalize_bottler_text, normalize_warning_text
 
@@ -171,6 +171,13 @@ def test_common_bottler_phrases_are_detected_and_fully_removed(phrase: str) -> N
 
     assert candidate.state is ExtractionState.FOUND
     assert normalize_bottler_text(candidate.value or "") == "acme cellars"
+
+
+def test_bottler_signal_match_prefers_the_longest_overlapping_phrase() -> None:
+    match = _BOTTLER_SIGNAL.search("Produced and bottled by Acme Cellars")
+
+    assert match is not None
+    assert match.group(0).casefold() == "produced and bottled by"
 
 
 @pytest.mark.parametrize("prefix", ["PRODUCT OF", "PRODUCED IN"])

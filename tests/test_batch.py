@@ -449,3 +449,94 @@ def test_manifest_without_images_renders_every_missing_image_row(
     assert frame["Filename"].tolist() == ["missing-one.png", "missing-two.png"]
     assert frame["Overall result"].tolist() == ["NOT CHECKED", "NOT CHECKED"]
     assert all("not uploaded" in problem.lower() for problem in frame["Problem"])
+
+
+def test_windows_spreadsheet_encoding_is_read_instead_of_rejected() -> None:
+    """Excel on Windows writes cp1252; one accented name must not fail 300 rows."""
+
+    batch = _batch_module()
+    row = ("chateau.png", "Château Brand", "Wine", "13% Alc./Vol.", "750 mL", "Bottler", "")
+    csv_bytes = _manifest_bytes([row]).decode("utf-8").encode("cp1252")
+
+    rows = batch.parse_manifest(csv_bytes)
+
+    assert rows[0].application.brand_name == "Château Brand"
+
+
+def test_header_tolerates_spreadsheet_whitespace_and_case() -> None:
+    batch = _batch_module()
+    header = tuple(f"  {column.upper()} " for column in MANIFEST_COLUMNS)
+
+    rows = batch.parse_manifest(_manifest_bytes([_manifest_row("label.png", 1)], header))
+
+    assert rows[0].filename == "label.png"
+
+
+def test_reordered_columns_are_still_rejected() -> None:
+    """Order carries meaning: a swap would pair the wrong value with the wrong label."""
+
+    batch = _batch_module()
+    swapped = (MANIFEST_COLUMNS[0], MANIFEST_COLUMNS[2], MANIFEST_COLUMNS[1], *MANIFEST_COLUMNS[3:])
+
+    with pytest.raises(batch.ManifestError):
+        batch.parse_manifest(_manifest_bytes([], swapped))
+
+
+def test_each_result_is_delivered_as_it_finishes() -> None:
+    """A 300-label queue must be triageable before the last label is done."""
+
+    batch = _batch_module()
+    rows = [_manifest_row(f"label-{index}.png", index) for index in range(5)]
+    manifest = batch.parse_manifest(_manifest_bytes(rows))
+    images = [batch.UploadedImage(f"label-{index}.png", b"bytes") for index in range(5)]
+    delivered: list[str] = []
+
+    results = batch.run_batch(
+        images,
+        manifest,
+        verify_callable=lambda _image, _application: _label_report(Status.PASS),
+        result_callback=lambda result: delivered.append(result.filename),
+    )
+
+    assert len(delivered) == len(results) == 5
+    assert sorted(delivered) == sorted(result.filename for result in results)
+
+
+def test_stopping_a_batch_keeps_finished_labels_and_reports_the_rest() -> None:
+    """Silently dropping the unreached labels is the worst outcome at 300."""
+
+    batch = _batch_module()
+    rows = [_manifest_row(f"label-{index}.png", index) for index in range(12)]
+    manifest = batch.parse_manifest(_manifest_bytes(rows))
+    images = [batch.UploadedImage(f"label-{index}.png", b"bytes") for index in range(12)]
+
+    results = batch.run_batch(
+        images,
+        manifest,
+        max_workers=1,
+        verify_callable=lambda _image, _application: _label_report(Status.PASS),
+        should_cancel=lambda: True,
+    )
+
+    assert len(results) == 12
+    cancelled = [result for result in results if result.error == batch.CANCELLED_ERROR]
+    checked = [result for result in results if result.error is None]
+    assert cancelled, "stopping must mark the labels it never reached"
+    assert checked, "labels already checked must survive the stop"
+    assert len(cancelled) + len(checked) == 12
+
+
+def test_a_batch_that_is_not_cancelled_reports_no_cancelled_rows() -> None:
+    batch = _batch_module()
+    rows = [_manifest_row(f"label-{index}.png", index) for index in range(4)]
+    manifest = batch.parse_manifest(_manifest_bytes(rows))
+    images = [batch.UploadedImage(f"label-{index}.png", b"bytes") for index in range(4)]
+
+    results = batch.run_batch(
+        images,
+        manifest,
+        verify_callable=lambda _image, _application: _label_report(Status.PASS),
+        should_cancel=lambda: False,
+    )
+
+    assert all(result.error is None for result in results)

@@ -281,6 +281,24 @@ def _render_batch_page() -> None:
     _render_saved_batch_results()
 
 
+def _progress_text(completed: int, total: int, elapsed_seconds: float) -> str:
+    """Tell the agent how long the queue still needs, in words, not a spinner.
+
+    The vendor pilot did not fail because the work was impossible. It failed because
+    nobody could tell whether it was progressing.
+    """
+
+    done = f"Completed {completed} of {total} labels"
+    if completed <= 0 or completed >= total or elapsed_seconds <= 0:
+        return done
+
+    remaining_seconds = (elapsed_seconds / completed) * (total - completed)
+    if remaining_seconds < 90:
+        return f"{done} — under 2 minutes left"
+    minutes = round(remaining_seconds / 60)
+    return f"{done} — about {minutes} minute{'s' if minutes != 1 else ''} left"
+
+
 def _handle_batch_submission(
     uploaded_files: Sequence[_UploadedFile] | None,
     manifest_file: _UploadedFile | None,
@@ -313,13 +331,20 @@ def _handle_batch_submission(
         return
 
     progress = st.progress(0.0, text="Completed 0 labels")
+    st.caption(
+        "A large batch takes a few minutes. You can stop it with the Stop control at "
+        "the top of the page and keep the labels already checked."
+    )
+    started_at = perf_counter()
 
     def show_progress(completed: int, total: int) -> None:
         fraction = completed / total if total else 1.0
-        progress.progress(fraction, text=f"Completed {completed} of {total} labels")
+        progress.progress(
+            fraction,
+            text=_progress_text(completed, total, perf_counter() - started_at),
+        )
 
     try:
-        started_at = perf_counter()
         results = label_batch.run_batch(
             images,
             manifest,

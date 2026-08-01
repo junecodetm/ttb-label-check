@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from collections.abc import Callable, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -44,6 +44,7 @@ PROCESSING_ERROR = (
     "This label could not be checked. Try a clear, straight-on image in better light, "
     "then run the batch again."
 )
+CANCELLED_ERROR = "Not checked: the batch was stopped before this label was reached."
 
 _REQUIRED_COLUMNS = MANIFEST_COLUMNS[:-1]
 _SEVERITY_RANK = {
@@ -67,6 +68,8 @@ class VerifyCallable(Protocol):
 
 
 ProgressCallback = Callable[[int, int], None]
+ResultCallback = Callable[["BatchResult"], None]
+CancelCheck = Callable[[], bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,14 +126,27 @@ class _WorkItem:
     image: UploadedImage
 
 
+def _decode_manifest_bytes(csv_data: bytes) -> str:
+    """Read the CSV an agent actually has rather than the one we wish they exported.
+
+    Excel on Windows writes Windows-1252, not UTF-8, so an accented bottler name in
+    one row used to reject the whole manifest. Falling back keeps 300 good rows
+    usable instead of failing the batch over one character.
+    """
+
+    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return csv_data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ManifestError("The application CSV uses text this tool cannot read.")
+
+
 def parse_manifest(csv_data: bytes | str) -> list[ManifestRow]:
     """Reject ambiguous application data rather than silently pairing the wrong label."""
 
     if isinstance(csv_data, bytes):
-        try:
-            text = csv_data.decode("utf-8-sig")
-        except UnicodeDecodeError as error:
-            raise ManifestError("The application CSV must use UTF-8 text.") from error
+        text = _decode_manifest_bytes(csv_data)
     elif isinstance(csv_data, str):
         text = csv_data.removeprefix("\ufeff")
     else:
@@ -144,7 +160,10 @@ def parse_manifest(csv_data: bytes | str) -> list[ManifestRow]:
     except csv.Error as error:
         raise ManifestError("The application CSV could not be read.") from error
 
-    if tuple(header) != MANIFEST_COLUMNS:
+    # Tolerate the cosmetic damage a spreadsheet does to a header row -- surrounding
+    # spaces and letter case. The ORDER still has to be right, because a silently
+    # reordered column would pair the wrong expected value with the wrong label.
+    if tuple(column.strip().casefold() for column in header) != MANIFEST_COLUMNS:
         expected = ", ".join(MANIFEST_COLUMNS)
         raise ManifestError(
             f"The application CSV columns must appear in exactly this order: {expected}."
@@ -211,8 +230,15 @@ def run_batch(
     verify_callable: VerifyCallable | None = None,
     max_workers: int = MAX_WORKERS,
     progress_callback: ProgressCallback | None = None,
+    result_callback: ResultCallback | None = None,
+    should_cancel: CancelCheck | None = None,
 ) -> list[BatchResult]:
-    """Reconcile first, then check matched labels concurrently in one shared process."""
+    """Reconcile first, then check matched labels concurrently in one shared process.
+
+    `result_callback` receives each label as it finishes so a long queue can be
+    triaged while the rest runs, and `should_cancel` lets an agent stop a 300-label
+    batch without losing the labels already checked.
+    """
 
     if not isinstance(max_workers, int) or isinstance(max_workers, bool) or max_workers < 1:
         raise ValueError("max_workers must be a positive integer")
@@ -246,6 +272,7 @@ def run_batch(
             ): item
             for item in work_items
         }
+        cancelled = False
         for future in as_completed(futures):
             item = futures[future]
             try:
@@ -257,6 +284,8 @@ def run_batch(
                     application=item.manifest.application,
                     report=report,
                 )
+            except CancelledError:
+                continue
             except Exception:
                 result = BatchResult(
                     filename=item.manifest.filename,
@@ -267,6 +296,32 @@ def run_batch(
             completed += 1
             if progress_callback is not None:
                 progress_callback(completed, total)
+            if result_callback is not None:
+                result_callback(result)
+
+            if not cancelled and should_cancel is not None and should_cancel():
+                # Stop scheduling, but keep every label already checked. Reporting
+                # the rest as "not checked" is the point: an agent must never be left
+                # believing a stopped batch was a finished one.
+                cancelled = True
+                for pending in futures:
+                    pending.cancel()
+
+        if cancelled:
+            checked = {order for order, _ in indexed_results}
+            for item in work_items:
+                if item.order in checked:
+                    continue
+                indexed_results.append(
+                    (
+                        item.order,
+                        BatchResult(
+                            filename=item.manifest.filename,
+                            application=item.manifest.application,
+                            error=CANCELLED_ERROR,
+                        ),
+                    )
+                )
 
     ordered = [result for _, result in sorted(indexed_results, key=lambda item: item[0])]
     return sort_results(ordered)

@@ -9,7 +9,7 @@ from labelcheck.config import (
 )
 from labelcheck.extract import ExtractionState, FieldCandidate, extract_candidates
 from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
-from labelcheck.normalize import normalize_origin_text
+from labelcheck.normalize import has_origin_value
 from labelcheck.rules import alcohol, bottler, brand, class_type, net_contents, origin, warning
 
 
@@ -57,6 +57,9 @@ def verify(image_bytes: bytes, expected: ApplicationRecord) -> LabelReport:
     if not isinstance(expected, ApplicationRecord):
         raise TypeError("expected must be an ApplicationRecord")
 
+    # Both calls already raise this module's own typed errors: preprocess converts every
+    # decode failure to ValueError, and ocr.recognize raises OcrError. Re-wrapping them
+    # here would only rename an image problem into an OCR one.
     image = preprocess.preprocess_image(image_bytes)
     blocks = ocr.recognize(image)
     candidates = extract_candidates(blocks, image)
@@ -93,9 +96,7 @@ def verify(image_bytes: bytes, expected: ApplicationRecord) -> LabelReport:
     )
     origin_candidate = candidates["origin_country"]
     if origin_candidate.state is ExtractionState.AMBIGUOUS:
-        origin_required = expected.origin_country is not None and bool(
-            normalize_origin_text(expected.origin_country)
-        )
+        origin_required = has_origin_value(expected.origin_country)
         if origin_required:
             results["origin_country"] = _ambiguous_result(
                 origin_candidate, expected.origin_country, "country-of-origin"

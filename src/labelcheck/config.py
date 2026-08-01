@@ -39,7 +39,7 @@ ORIGIN_PREFIX_TOKEN_SEQUENCES = (
     ("made", "in"),
     ("origin",),
 )
-# Manifest placeholders are compared case-insensitively after Unicode and whitespace cleanup.
+# Whole-cell agent-entered no-value markers, compared after Unicode/case/whitespace cleanup.
 ORIGIN_PLACEHOLDER_VALUES = frozenset(
     ("n/a", "na", "none", "-", "--", r"n\a", "not applicable", "domestic")
 )

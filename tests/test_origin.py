@@ -30,6 +30,18 @@ def test_origin_placeholders_are_not_evaluated_as_imports(placeholder: str) -> N
     assert "blank or placeholder" in result.detail.lower()
 
 
+def test_unlisted_application_marker_is_not_treated_as_a_domestic_placeholder() -> None:
+    result = verify(extracted="Product of France", expected="?")
+
+    assert result.status is Status.FAIL
+
+
+def test_extracted_placeholder_text_is_compared_for_a_required_import() -> None:
+    result = verify(extracted="Product of N/A", expected="France")
+
+    assert result.status is Status.FAIL
+
+
 def test_import_origin_case_and_punctuation_variation_passes() -> None:
     result = verify(extracted="Product of FRANCE.", expected="Product of France")
 
