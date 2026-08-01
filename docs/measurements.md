@@ -99,9 +99,29 @@ progress reporting, an estimated time remaining, and cancellation instead.
 
 ## Real TTB label artwork
 
-Fetched from the TTB Public COLA Registry (`tools/fetch_real_labels.py`), which is the
-only source pairing genuine approved artwork with structured ground truth. This is
-where the synthetic corpus turned out to be flattering.
+Taken from the TTB Public COLA Registry, the only source pairing genuine approved
+artwork with structured ground truth. This is where the synthetic corpus turned out to
+be flattering.
+
+**How to reproduce it.** There is deliberately no automated fetcher in this repo. The
+registry sits behind an F5/TSPD JavaScript bot challenge: a plain HTTP client receives
+the challenge page instead of the record, and defeating that on a government site is not
+something this project will do. The manual procedure, which is what produced the results
+below, takes about a minute per label:
+
+1. Search the registry at `https://ttbonline.gov/colasonline/publicSearchColasBasic.do`
+   in a real browser and open a result. The detail page carries the ground truth —
+   brand name, class/type code, origin code, and the bottler's name and address.
+2. Follow **Printable Version** to
+   `viewColaDetails.do?action=publicFormDisplay&ttbid=<TTB_ID>` and read the label
+   image's `<img src>`, which has the form
+   `publicViewAttachment.do?filename=<NAME>&filetype=l`.
+3. Save the image, then check it with
+   `.venv/bin/python tools/check_label.py IMAGE --brand ... --class-type ...`.
+
+An earlier Open Food Facts fetcher was written and discarded: its US alcohol categories
+return beef jerky, olive oil and vitamin water, and it holds almost no back-label
+photographs, which is where the government warning lives.
 
 Test case: TTB ID 25079001000562, a Canadian blended whiskey. OCR read the stylised
 label **without inter-word spaces** — `GOVERNMENTWARNING:`, `IMPORTED&BOTTLEDBYSAHALEE`,
