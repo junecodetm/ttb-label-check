@@ -1,58 +1,46 @@
-"""Fetch real alcohol-label photographs from Open Food Facts for local OCR testing."""
+"""Fetch approved alcohol labels and registry ground truth from TTB COLAs Online."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+import http.cookiejar
 import json
 import re
 import sys
 import time
 import warnings
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
+from datetime import date, timedelta
+from html.parser import HTMLParser
 from http.client import HTTPException
 from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from PIL import Image, UnidentifiedImageError
 
-SEARCH_ENDPOINT = "https://world.openfoodfacts.org/api/v2/search"
-USER_AGENT = "labelcheck-testing/1.0 (local OCR evaluation)"
-DEFAULT_CATEGORIES = ("en:beers", "en:wines", "en:spirits")
-COUNTRY_TAG = "en:united-states"
-PAGE_SIZE = 50
-REQUEST_DELAY_SECONDS = 0.25
-SEARCH_REQUEST_DELAY_SECONDS = 6.1
-RETRY_DELAY_SECONDS = 1.0
-MAX_API_BYTES = 10 * 1024 * 1024
-MAX_IMAGE_BYTES = 30 * 1024 * 1024
+BASE_URL = "https://ttbonline.gov/colasonline/"
+SEARCH_PAGE_URL = urljoin(BASE_URL, "publicSearchColasBasic.do")
+SEARCH_RESULTS_URL = urljoin(
+    BASE_URL,
+    "publicSearchColasBasicProcess.do?action=search",
+)
+DETAIL_URL = urljoin(BASE_URL, "viewColaDetails.do")
+DEFAULT_PRODUCT = "%WHISKEY%"
+DEFAULT_DELAY_SECONDS = 1.0
+REQUEST_TIMEOUT_SECONDS = 30.0
+MAX_HTML_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_BYTES = 40 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
-LICENSE = "CC BY-SA 3.0 (Open Food Facts)"
 TRANSIENT_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
-SEARCH_FIELDS = (
-    "code",
-    "product_name",
-    "brands",
-    "generic_name",
-    "categories_tags",
-    "quantity",
-    "product_quantity",
-    "product_quantity_unit",
-    "alcohol_value",
-    "alcohol_100g",
-    "image_back_original_url",
-    "image_back_url",
-    "image_front_original_url",
-    "image_front_url",
-    "image_url",
-    "selected_images",
-    "nutriments",
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/126.0.0.0 Safari/537.36"
 )
 MANIFEST_COLUMNS = (
     "filename",
@@ -63,136 +51,426 @@ MANIFEST_COLUMNS = (
     "bottler",
     "origin_country",
 )
-CATEGORY_CLASS_TYPES = {
-    "en:beers": "Beer",
-    "en:wines": "Wine",
-    "en:spirits": "Spirits",
-}
-VARIANT_PRIORITY = {
-    "thumb": 1,
-    "small": 2,
-    "display": 3,
-    "original": 4,
-    "full": 4,
-}
+DETAIL_LABELS = (
+    "TTB ID:",
+    "Status:",
+    "Vendor Code:",
+    "Serial #:",
+    "Class/Type Code:",
+    "Origin Code:",
+    "Brand Name:",
+    "Fanciful Name:",
+    "Type of Application:",
+    "For Sale In:",
+    "Total Bottle Capacity:",
+    "Wine Vintage:",
+    "Formula:",
+    "Approval Date:",
+    "Qualifications:",
+    "Plant Registry/Basic Permit/Brewers No (Principal Place of Business):",
+    "Plant Registry/Basic Permit/Brewers No (Other):",
+    "Contact Information:",
+)
+PLANT_LABEL = "Plant Registry/Basic Permit/Brewers No (Principal Place of Business):"
+PLANT_STOP_LABELS = (
+    "Plant Registry/Basic Permit/Brewers No (Other):",
+    "Contact Information:",
+)
+DOMESTIC_ORIGINS = frozenset(
+    {
+        "ALABAMA",
+        "ALASKA",
+        "AMERICAN SAMOA",
+        "ARIZONA",
+        "ARKANSAS",
+        "CALIFORNIA",
+        "COLORADO",
+        "CONNECTICUT",
+        "DELAWARE",
+        "DISTRICT OF COLUMBIA",
+        "FLORIDA",
+        "GEORGIA",
+        "GUAM",
+        "HAWAII",
+        "IDAHO",
+        "ILLINOIS",
+        "INDIANA",
+        "IOWA",
+        "KANSAS",
+        "KENTUCKY",
+        "LOUISIANA",
+        "MAINE",
+        "MARYLAND",
+        "MASSACHUSETTS",
+        "MICHIGAN",
+        "MINNESOTA",
+        "MISSISSIPPI",
+        "MISSOURI",
+        "MONTANA",
+        "NEBRASKA",
+        "NEVADA",
+        "NEW HAMPSHIRE",
+        "NEW JERSEY",
+        "NEW MEXICO",
+        "NEW YORK",
+        "NORTH CAROLINA",
+        "NORTH DAKOTA",
+        "NORTHERN MARIANA ISLANDS",
+        "OHIO",
+        "OKLAHOMA",
+        "OREGON",
+        "PENNSYLVANIA",
+        "PUERTO RICO",
+        "RHODE ISLAND",
+        "SOUTH CAROLINA",
+        "SOUTH DAKOTA",
+        "TENNESSEE",
+        "TEXAS",
+        "UNITED STATES",
+        "UNITED STATES OF AMERICA",
+        "US VIRGIN ISLANDS",
+        "UTAH",
+        "VERMONT",
+        "VIRGIN ISLANDS",
+        "VIRGINIA",
+        "WASHINGTON",
+        "WEST VIRGINIA",
+        "WISCONSIN",
+        "WYOMING",
+    }
+)
 
 
 class _FetchError(RuntimeError):
-    """Carry a concise network failure to the product-level skip logger."""
+    """Carry a concise request failure to the record-level skip logger."""
+
+
+class _SearchError(RuntimeError):
+    """Identify a search-page or search-results contract failure."""
 
 
 @dataclass(frozen=True, slots=True)
-class _ImageCandidate:
-    url: str
+class _Response:
+    body: bytes
+    content_type: str
+    final_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class _FormControl:
+    name: str
+    value: str
     kind: str
-    score: tuple[int, int, int]
 
 
 @dataclass(frozen=True, slots=True)
-class _KeptProduct:
+class _SearchForm:
+    method: str
+    action: str
+    controls: tuple[_FormControl, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _RegistryRecord:
+    ttbid: str
+    brand_name: str
+    fanciful_name: str
+    class_type: str
+    origin_code: str
+    origin_country: str
+    bottler: str
+    source_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class _KeptImage:
     filename: str
+    width: int
+    height: int
     ground_truth: dict[str, str]
     manifest_row: dict[str, str]
-    used_back_image: bool
 
 
 @dataclass(slots=True)
 class _RunStats:
     skipped: int = 0
 
-    def skip(self, identity: str, reason: str) -> None:
+    def skip(self, identity: str, reason: object) -> None:
         self.skipped += 1
-        _log_skip(identity, reason)
+        print(f"skip {identity}: {_one_line(reason)}", file=sys.stderr)
 
 
 class _PoliteClient:
-    """Serialize requests, throttle them, and retry one transient failure."""
+    """Keep one cookie-aware opener while serializing and throttling requests."""
 
-    def __init__(self, timeout: float) -> None:
-        self.timeout = timeout
+    def __init__(self, delay: float) -> None:
+        self.delay = delay
+        self.cookie_jar = http.cookiejar.CookieJar()
+        self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
         self._last_request_started: float | None = None
-        self._last_search_started: float | None = None
 
-    def get(
-        self,
-        url: str,
-        *,
-        max_bytes: int,
-        search_request: bool = False,
-    ) -> tuple[bytes, str]:
-        """Return bounded response bytes and the final URL after redirects."""
+    def get(self, url: str, *, max_bytes: int) -> _Response:
+        """Fetch one bounded response with the shared COLAs Online session."""
 
+        return self._request(url, data=None, max_bytes=max_bytes)
+
+    def post(self, url: str, fields: Sequence[tuple[str, str]]) -> _Response:
+        """Submit form fields through the shared COLAs Online session."""
+
+        data = urlencode(fields).encode("ascii")
+        return self._request(url, data=data, max_bytes=MAX_HTML_BYTES)
+
+    def _request(self, url: str, *, data: bytes | None, max_bytes: int) -> _Response:
         for attempt in range(2):
-            self._wait_for_request_slot(search_request=search_request)
-            request = Request(
-                url,
-                headers={"Accept": "*/*", "User-Agent": USER_AGENT},
-            )
-            retry_delay = RETRY_DELAY_SECONDS
+            self._wait_for_request_slot()
+            headers = {
+                "Accept": "text/html,application/xhtml+xml,image/avif,image/webp,image/*,*/*;q=0.8",
+                "User-Agent": USER_AGENT,
+            }
+            if data is not None:
+                headers["Content-Type"] = "application/x-www-form-urlencoded"
+            request = Request(url, data=data, headers=headers)
             try:
-                with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
-                    data = response.read(max_bytes + 1)
-                    if len(data) > max_bytes:
+                with self.opener.open(  # noqa: S310 - fixed public HTTPS endpoints.
+                    request,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
+                ) as response:
+                    body = response.read(max_bytes + 1)
+                    if len(body) > max_bytes:
                         raise _FetchError(f"response exceeded {max_bytes // (1024 * 1024)} MiB")
-                    if not data:
+                    if not body:
                         raise _FetchError("server returned an empty response")
-                    return data, response.geturl()
+                    return _Response(
+                        body=body,
+                        content_type=response.headers.get_content_type().casefold(),
+                        final_url=response.geturl(),
+                    )
             except HTTPError as error:
                 transient = error.code in TRANSIENT_HTTP_STATUSES
                 reason = f"HTTP {error.code}"
-                retry_after = error.headers.get("Retry-After") if error.headers else None
-                retry_delay = max(
-                    retry_delay,
-                    _retry_after_seconds(retry_after),
-                )
-            except HTTPException as error:
+            except (HTTPException, TimeoutError) as error:
                 transient = True
                 reason = str(error)
+            except URLError as error:
+                transient = True
+                reason = str(error.reason)
             except OSError as error:
                 transient = True
-                reason = str(error.reason) if isinstance(error, URLError) else str(error)
+                reason = str(error)
             except ValueError as error:
                 transient = False
                 reason = str(error)
 
             if attempt == 0 and transient:
-                time.sleep(retry_delay)
                 continue
             raise _FetchError(_one_line(reason)) from None
 
         raise _FetchError("request failed")
 
-    def _wait_for_request_slot(self, *, search_request: bool) -> None:
+    def _wait_for_request_slot(self) -> None:
         now = time.monotonic()
-        delays = [0.0]
         if self._last_request_started is not None:
-            delays.append(REQUEST_DELAY_SECONDS - (now - self._last_request_started))
-        if search_request and self._last_search_started is not None:
-            delays.append(SEARCH_REQUEST_DELAY_SECONDS - (now - self._last_search_started))
-        time.sleep(max(0.0, *delays))
-        started = time.monotonic()
-        self._last_request_started = started
-        if search_request:
-            self._last_search_started = started
+            remaining = self.delay - (now - self._last_request_started)
+            if remaining > 0:
+                time.sleep(remaining)
+        self._last_request_started = time.monotonic()
+
+
+class _SearchFormParser(HTMLParser):
+    """Inspect the real basic-search form instead of guessing its field names."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.method = ""
+        self.action = ""
+        self.controls: list[_FormControl] = []
+        self._in_target_form = False
+        self._select: dict[str, object] | None = None
+        self._textarea: dict[str, object] | None = None
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        attributes = {name.casefold(): value for name, value in attrs}
+        if tag == "form":
+            name = attributes.get("name") or ""
+            action = attributes.get("action") or ""
+            self._in_target_form = name == "searchCriteriaForm" or (
+                "publicSearchColasBasicProcess.do" in action
+            )
+            if self._in_target_form:
+                self.method = (attributes.get("method") or "get").casefold()
+                self.action = action
+            return
+        if not self._in_target_form:
+            return
+
+        if tag == "input":
+            self._add_input(attributes)
+        elif tag == "select":
+            name = attributes.get("name") or ""
+            if name and "disabled" not in attributes:
+                self._select = {"name": name, "options": [], "multiple": "multiple" in attributes}
+        elif tag == "option" and self._select is not None:
+            options = self._select["options"]
+            assert isinstance(options, list)
+            options.append(
+                {
+                    "value": attributes.get("value"),
+                    "selected": "selected" in attributes,
+                    "text": [],
+                }
+            )
+        elif tag == "textarea":
+            name = attributes.get("name") or ""
+            if name and "disabled" not in attributes:
+                self._textarea = {"name": name, "text": []}
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "form" and self._in_target_form:
+            self._in_target_form = False
+        elif tag == "select" and self._select is not None:
+            self._finish_select()
+        elif tag == "textarea" and self._textarea is not None:
+            text = self._textarea["text"]
+            assert isinstance(text, list)
+            self.controls.append(
+                _FormControl(
+                    name=str(self._textarea["name"]),
+                    value="".join(text),
+                    kind="textarea",
+                )
+            )
+            self._textarea = None
+
+    def handle_data(self, data: str) -> None:
+        if self._textarea is not None:
+            text = self._textarea["text"]
+            assert isinstance(text, list)
+            text.append(data)
+        if self._select is not None:
+            options = self._select["options"]
+            assert isinstance(options, list)
+            if options:
+                option_text = options[-1]["text"]
+                assert isinstance(option_text, list)
+                option_text.append(data)
+
+    def form(self) -> _SearchForm:
+        if not self.method:
+            raise _SearchError("basic-search page did not contain searchCriteriaForm")
+        return _SearchForm(self.method, self.action, tuple(self.controls))
+
+    def _add_input(self, attributes: dict[str, str | None]) -> None:
+        name = attributes.get("name") or ""
+        kind = (attributes.get("type") or "text").casefold()
+        if not name or "disabled" in attributes or kind in {"button", "file", "reset", "submit"}:
+            return
+        if kind in {"checkbox", "radio"} and "checked" not in attributes:
+            return
+        self.controls.append(
+            _FormControl(
+                name=name,
+                value=attributes.get("value") or ("on" if kind in {"checkbox", "radio"} else ""),
+                kind=kind,
+            )
+        )
+
+    def _finish_select(self) -> None:
+        assert self._select is not None
+        options = self._select["options"]
+        assert isinstance(options, list)
+        selected = [option for option in options if option["selected"]]
+        if not selected and options:
+            selected = options[:1]
+        if not self._select["multiple"] and selected:
+            selected = selected[:1]
+        for option in selected:
+            option_text = option["text"]
+            assert isinstance(option_text, list)
+            value = option["value"]
+            self.controls.append(
+                _FormControl(
+                    name=str(self._select["name"]),
+                    value=str(value) if value is not None else "".join(option_text).strip(),
+                    kind="select",
+                )
+            )
+        self._select = None
+
+
+class _RegistryHTMLParser(HTMLParser):
+    """Collect rendered text and relevant registry links without a DOM dependency."""
+
+    _BREAK_TAGS = frozenset(
+        {
+            "br",
+            "dd",
+            "div",
+            "dl",
+            "dt",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "li",
+            "p",
+            "section",
+            "table",
+            "td",
+            "th",
+            "tr",
+        }
+    )
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.hrefs: list[str] = []
+        self.image_sources: list[str] = []
+        self._ignored_tag: str | None = None
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag in {"script", "style"}:
+            self._ignored_tag = tag
+            return
+        if self._ignored_tag is not None:
+            return
+        if tag in self._BREAK_TAGS:
+            self.parts.append("\n")
+        attributes = {name.casefold(): value for name, value in attrs}
+        if tag == "a" and attributes.get("href"):
+            self.hrefs.append(str(attributes["href"]))
+        elif tag == "img" and attributes.get("src"):
+            self.image_sources.append(str(attributes["src"]))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == self._ignored_tag:
+            self._ignored_tag = None
+            return
+        if self._ignored_tag is None and tag in self._BREAK_TAGS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._ignored_tag is None:
+            self.parts.append(data)
+
+    def lines(self) -> list[str]:
+        return [
+            line for raw_line in "".join(self.parts).splitlines() if (line := _one_line(raw_line))
+        ]
 
 
 def _one_line(value: object) -> str:
-    return " ".join(str(value).split()) or "unknown error"
-
-
-def _retry_after_seconds(value: str | None) -> float:
-    if value is None:
-        return 0.0
-    try:
-        return max(0.0, float(value))
-    except ValueError:
-        try:
-            retry_at = parsedate_to_datetime(value)
-        except (TypeError, ValueError, OverflowError):
-            return 0.0
-        if retry_at.tzinfo is None:
-            retry_at = retry_at.replace(tzinfo=UTC)
-        return max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
+    return " ".join(str(value).replace("\xa0", " ").split()) or "unknown error"
 
 
 def _positive_int(value: str) -> int:
@@ -202,25 +480,30 @@ def _positive_int(value: str) -> int:
     return number
 
 
-def _positive_float(value: str) -> float:
+def _nonnegative_float(value: str) -> float:
     number = float(value)
-    if number <= 0:
-        raise argparse.ArgumentTypeError("must be greater than 0")
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
     return number
 
 
-def _parse_categories(value: str) -> tuple[str, ...]:
-    categories = tuple(dict.fromkeys(item.strip() for item in value.split(",") if item.strip()))
-    if not categories:
-        raise argparse.ArgumentTypeError("must contain at least one category tag")
-    return categories
+def _product_pattern(value: str) -> str:
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be blank")
+    return value.strip()
+
+
+def _ttbid(value: str) -> str:
+    if re.fullmatch(r"\d{14}", value) is None:
+        raise argparse.ArgumentTypeError("must be a 14-digit TTB ID")
+    return value
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Fetch a gitignored corpus of real alcohol-product label photographs."
+        description="Fetch real approved alcohol labels from the TTB Public COLA Registry."
     )
-    parser.add_argument("--limit", type=_positive_int, default=30, help="total images to keep")
+    parser.add_argument("--limit", type=_positive_int, default=20, help="maximum images to keep")
     parser.add_argument(
         "--out",
         type=Path,
@@ -228,365 +511,377 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="corpus directory (default: .real_labels)",
     )
     parser.add_argument(
-        "--categories",
-        type=_parse_categories,
-        default=DEFAULT_CATEGORIES,
-        help="comma-separated Open Food Facts category tags",
+        "--delay",
+        type=_nonnegative_float,
+        default=DEFAULT_DELAY_SECONDS,
+        help="minimum delay between requests in seconds (default: 1.0)",
     )
     parser.add_argument(
-        "--timeout",
-        type=_positive_float,
-        default=20.0,
-        help="per-request timeout in seconds",
+        "--product",
+        type=_product_pattern,
+        default=DEFAULT_PRODUCT,
+        help="TTB product-name pattern (default: %%WHISKEY%%)",
+    )
+    parser.add_argument(
+        "--ttbid",
+        type=_ttbid,
+        action="append",
+        default=[],
+        help="fetch one TTB ID directly; repeat to bypass search with multiple IDs",
     )
     return parser.parse_args(argv)
 
 
-def _search_url(category: str, page: int) -> str:
-    query = urlencode(
-        {
-            "categories_tags": category,
-            "countries_tags": COUNTRY_TAG,
-            "fields": ",".join(SEARCH_FIELDS),
-            "page_size": PAGE_SIZE,
-            "page": page,
-        }
-    )
-    return f"{SEARCH_ENDPOINT}?{query}"
+def _decode_html(response: _Response) -> str:
+    return response.body.decode("utf-8", errors="replace")
 
 
-def _iter_products(
-    client: _PoliteClient,
-    category: str,
-    stats: _RunStats,
-) -> Iterator[Mapping[str, object]]:
-    page = 1
-    while True:
-        try:
-            raw_payload, _source_url = client.get(
-                _search_url(category, page),
-                max_bytes=MAX_API_BYTES,
-                search_request=True,
-            )
-            payload = json.loads(raw_payload)
-        except (_FetchError, json.JSONDecodeError, UnicodeDecodeError) as error:
-            stats.skip(f"{category} page {page}", f"search failed: {_one_line(error)}")
-            return
-
-        if not isinstance(payload, dict):
-            stats.skip(f"{category} page {page}", "search returned a non-object payload")
-            return
-        products = payload.get("products")
-        if not isinstance(products, list):
-            stats.skip(f"{category} page {page}", "search response had no product list")
-            return
-
-        for index, product in enumerate(products, start=1):
-            if isinstance(product, dict):
-                yield product
-            else:
-                stats.skip(
-                    f"{category} page {page} product {index}",
-                    "search returned a malformed product",
-                )
-
-        total = payload.get("count")
-        if not products or len(products) < PAGE_SIZE:
-            return
-        if isinstance(total, int) and page * PAGE_SIZE >= total:
-            return
-        page += 1
+def _normalized_control_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.casefold())
 
 
-def _text(value: object) -> str:
-    if isinstance(value, str):
-        return value.strip()
-    if isinstance(value, bool) or value is None:
-        return ""
-    if isinstance(value, (int, float)):
-        return _format_number(value)
-    return ""
-
-
-def _format_number(value: int | float) -> str:
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
-    return str(value)
-
-
-def _extract_abv(product: Mapping[str, object]) -> str:
-    nutriments = product.get("nutriments")
-    sources: list[object] = [product.get("alcohol_value"), product.get("alcohol_100g")]
-    if isinstance(nutriments, dict):
-        sources.extend(
-            (
-                nutriments.get("alcohol_value"),
-                nutriments.get("alcohol_100g"),
-                nutriments.get("alcohol"),
-            )
+def _find_search_field(
+    form: _SearchForm,
+    suffix: str,
+    *,
+    accepted_kinds: frozenset[str] | None = None,
+) -> str:
+    candidates = [
+        control
+        for control in form.controls
+        if _normalized_control_name(control.name).endswith(suffix)
+        and (accepted_kinds is None or control.kind in accepted_kinds)
+    ]
+    names = list(dict.fromkeys(control.name for control in candidates))
+    if len(names) != 1:
+        available = ", ".join(dict.fromkeys(control.name for control in form.controls))
+        raise _SearchError(
+            f"could not identify one {suffix} field in searchCriteriaForm; controls: {available}"
         )
+    return names[0]
 
-    for value in sources:
-        text = _text(value)
-        match = re.search(r"\d+(?:[.,]\d+)?", text)
-        if match is None:
+
+def _search_fields(search_page_html: str, product: str) -> list[tuple[str, str]]:
+    parser = _SearchFormParser()
+    parser.feed(search_page_html)
+    form = parser.form()
+    if form.method != "post":
+        raise _SearchError(f"searchCriteriaForm uses unexpected {form.method.upper()} method")
+
+    date_from_name = _find_search_field(form, "datecompletedfrom")
+    date_to_name = _find_search_field(form, "datecompletedto")
+    product_name = _find_search_field(
+        form,
+        "productname",
+        accepted_kinds=frozenset({"search", "text", "textarea"}),
+    )
+    replaced_names = {date_from_name, date_to_name, product_name}
+    fields = [
+        (control.name, control.value)
+        for control in form.controls
+        if control.name not in replaced_names
+    ]
+    today = date.today()
+    fields.extend(
+        (
+            (date_from_name, (today - timedelta(days=365)).strftime("%m/%d/%Y")),
+            (date_to_name, today.strftime("%m/%d/%Y")),
+            (product_name, product),
+        )
+    )
+    return fields
+
+
+def _ttbids_from_results(html_text: str) -> list[str]:
+    parser = _RegistryHTMLParser()
+    parser.feed(html_text)
+    ttbids: list[str] = []
+    for href in parser.hrefs:
+        if "viewcoladetails" not in href.casefold():
             continue
-        number = match.group(0).replace(",", ".")
-        try:
-            numeric_value = float(number)
-        except ValueError:
+        values = parse_qs(urlparse(urljoin(BASE_URL, href)).query).get("ttbid", [])
+        ttbids.extend(value for value in values if re.fullmatch(r"\d{14}", value))
+        match = re.search(r"viewColaDetails\(['\"]?(\d{14})", href, flags=re.IGNORECASE)
+        if match is not None:
+            ttbids.append(match.group(1))
+
+    for match in re.finditer(
+        r"viewColaDetails.{0,300}?ttbid(?:=|%3D)(\d{14})",
+        html_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        ttbids.append(match.group(1))
+    return list(dict.fromkeys(ttbids))
+
+
+def _search_ttbids(client: _PoliteClient, search_page_html: str, product: str) -> list[str]:
+    fields = _search_fields(search_page_html, product)
+    response = client.post(SEARCH_RESULTS_URL, fields)
+    results_html = _decode_html(response)
+    ttbids = _ttbids_from_results(results_html)
+    if not ttbids:
+        raise _SearchError(
+            "search response contained no viewColaDetails links; retry with explicit --ttbid values"
+        )
+    return ttbids
+
+
+def _detail_url(ttbid: str, action: str) -> str:
+    return f"{DETAIL_URL}?{urlencode({'action': action, 'ttbid': ttbid})}"
+
+
+def _strip_help_text(value: str) -> str:
+    return re.sub(
+        r"^Open help for .*? in a new window\s*",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    ).strip()
+
+
+def _line_starts_with_label(line: str) -> bool:
+    folded = line.casefold()
+    return any(folded.startswith(label.casefold()) for label in DETAIL_LABELS)
+
+
+def _field_value(lines: Sequence[str], label: str) -> str:
+    folded_label = label.casefold()
+    for index, line in enumerate(lines):
+        position = line.casefold().find(folded_label)
+        if position < 0:
             continue
-        if 0.0 <= numeric_value <= 100.0:
-            return f"{_format_number(numeric_value)}% ABV"
+        remainder = _strip_help_text(line[position + len(label) :])
+        if remainder:
+            return remainder
+        for candidate in lines[index + 1 :]:
+            if _line_starts_with_label(candidate):
+                break
+            cleaned = _strip_help_text(candidate)
+            if cleaned:
+                return cleaned
     return ""
 
 
-def _extract_quantity(product: Mapping[str, object]) -> str:
-    amount = _text(product.get("product_quantity"))
-    unit = _text(product.get("product_quantity_unit")).casefold()
-    if amount and unit:
-        match = re.fullmatch(r"\d+(?:[.,]\d+)?", amount)
-        if match is not None:
-            numeric_value = float(match.group(0).replace(",", "."))
-            if unit in {"ml", "millilitre", "millilitres", "milliliter", "milliliters"}:
-                return f"{_format_number(numeric_value)} mL"
-            if unit in {"cl", "centilitre", "centilitres", "centiliter", "centiliters"}:
-                return f"{_format_number(numeric_value * 10)} mL"
-            if unit in {"l", "litre", "litres", "liter", "liters"}:
-                return f"{_format_number(numeric_value)} L"
-            if unit in {"fl oz", "floz", "fluid ounce", "fluid ounces"}:
-                return f"{_format_number(numeric_value)} fl oz"
-    return _text(product.get("quantity"))
+def _looks_like_permit_number(value: str) -> bool:
+    compact = value.strip().upper()
+    if " " in compact or "-" not in compact:
+        return False
+    return re.fullmatch(r"[A-Z0-9]{1,8}(?:-[A-Z0-9]{1,10}){1,5}", compact) is not None
 
 
-def _class_type(product: Mapping[str, object], category: str) -> str:
-    generic_name = _text(product.get("generic_name"))
-    return generic_name or CATEGORY_CLASS_TYPES.get(category, category.removeprefix("en:"))
+def _plant_address(lines: Sequence[str]) -> str:
+    collected: list[str] = []
+    for index, line in enumerate(lines):
+        position = line.casefold().find(PLANT_LABEL.casefold())
+        if position < 0:
+            continue
+        remainder = _strip_help_text(line[position + len(PLANT_LABEL) :])
+        if remainder:
+            collected.append(remainder)
+        for candidate in lines[index + 1 : index + 16]:
+            if any(candidate.casefold().startswith(stop.casefold()) for stop in PLANT_STOP_LABELS):
+                break
+            if _line_starts_with_label(candidate):
+                break
+            cleaned = _strip_help_text(candidate)
+            if cleaned:
+                collected.append(cleaned)
+        break
+
+    address_parts = [
+        part
+        for part in dict.fromkeys(collected)
+        if part.casefold() not in {"none", "n/a"} and not _looks_like_permit_number(part)
+    ]
+    return " / ".join(address_parts)
 
 
-def _walk_urls(value: object, path: tuple[str, ...] = ()) -> Iterator[tuple[str, tuple[str, ...]]]:
-    if isinstance(value, str):
-        if value.startswith(("https://", "http://")):
-            yield value, path
-        return
-    if isinstance(value, dict):
-        for key, nested_value in value.items():
-            yield from _walk_urls(nested_value, (*path, str(key).casefold()))
-    elif isinstance(value, list):
-        for index, nested_value in enumerate(value):
-            yield from _walk_urls(nested_value, (*path, str(index)))
+def _origin_country(origin_code: str) -> str:
+    normalized = _one_line(origin_code).upper()
+    return "" if not origin_code or normalized in DOMESTIC_ORIGINS else origin_code
 
 
-def _variant_score(path: tuple[str, ...], url: str) -> tuple[int, int, int]:
-    named_variant = max((VARIANT_PRIORITY.get(part, 0) for part in path), default=0)
-    size_matches = re.findall(
-        r"[._-](\d{2,5})(?:x\d{2,5})?(?=\.(?:jpe?g|png|webp)(?:\?|$))",
-        url.casefold(),
+def _parse_record(ttbid: str, detail_html: str, source_url: str) -> _RegistryRecord:
+    parser = _RegistryHTMLParser()
+    parser.feed(detail_html)
+    lines = parser.lines()
+    brand_name = _field_value(lines, "Brand Name:")
+    class_type = _field_value(lines, "Class/Type Code:")
+    if not brand_name or not class_type:
+        raise ValueError("detail page did not contain both Brand Name and Class/Type Code")
+    origin_code = _field_value(lines, "Origin Code:")
+    return _RegistryRecord(
+        ttbid=ttbid,
+        brand_name=brand_name,
+        fanciful_name=_field_value(lines, "Fanciful Name:"),
+        class_type=class_type,
+        origin_code=origin_code,
+        origin_country=_origin_country(origin_code),
+        bottler=_plant_address(lines),
+        source_url=source_url,
     )
-    pixels = max((int(value) for value in size_matches), default=0)
-    english = int("en" in path)
-    return named_variant, pixels, english
 
 
-def _full_variant(url: str) -> str | None:
-    full_url, replacements = re.subn(
-        r"\.(?:100|200|400)\.(?=(?:jpe?g|png|webp)(?:\?|$))",
-        ".full.",
-        url,
-        count=1,
-        flags=re.IGNORECASE,
-    )
-    return full_url if replacements else None
+def _attachment_urls(printable_html: str) -> list[str]:
+    parser = _RegistryHTMLParser()
+    parser.feed(printable_html)
+    urls: list[str] = []
+    for source in parser.image_sources:
+        absolute = urljoin(BASE_URL, source)
+        parsed = urlparse(absolute)
+        if not parsed.path.endswith("/publicViewAttachment.do"):
+            continue
+        query = parse_qs(parsed.query)
+        if query.get("filetype") == ["l"] and query.get("filename"):
+            urls.append(absolute)
+    return list(dict.fromkeys(urls))
 
 
-def _image_candidates(product: Mapping[str, object]) -> tuple[_ImageCandidate, ...]:
-    selected = product.get("selected_images")
-    selected_images = selected if isinstance(selected, dict) else {}
-    by_kind: dict[str, list[_ImageCandidate]] = {"back": [], "front": []}
+def _jpeg_bytes(data: bytes) -> tuple[bytes, int, int]:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        with Image.open(BytesIO(data)) as probe:
+            width, height = probe.size
+            image_format = probe.format
+            if width < 1 or height < 1:
+                raise ValueError("image has invalid dimensions")
+            if width * height > MAX_IMAGE_PIXELS:
+                raise ValueError(f"image exceeds {MAX_IMAGE_PIXELS:,} pixels")
+            probe.verify()
 
-    for kind in by_kind:
-        for selected_kind, value in selected_images.items():
-            normalized_kind = str(selected_kind).casefold()
-            if normalized_kind != kind and not normalized_kind.startswith(f"{kind}_"):
-                continue
-            for url, path in _walk_urls(value, (normalized_kind,)):
-                by_kind[kind].append(_ImageCandidate(url, kind, _variant_score(path, url)))
-
-        for field_name, priority in (
-            (f"image_{kind}_original_url", VARIANT_PRIORITY["original"]),
-            (f"image_{kind}_url", VARIANT_PRIORITY["display"]),
-        ):
-            url = _text(product.get(field_name))
-            if url.startswith(("https://", "http://")):
-                score = _variant_score((field_name,), url)
-                by_kind[kind].append(
-                    _ImageCandidate(url, kind, (max(score[0], priority), score[1], score[2]))
-                )
-
-    generic_front_url = _text(product.get("image_url"))
-    if generic_front_url.startswith(("https://", "http://")):
-        score = _variant_score(("display",), generic_front_url)
-        by_kind["front"].append(_ImageCandidate(generic_front_url, "front", score))
-
-    ordered: list[_ImageCandidate] = []
-    seen_urls: set[str] = set()
-    for kind in ("back", "front"):
-        candidates = sorted(by_kind[kind], key=lambda candidate: candidate.score, reverse=True)
-        for candidate in candidates:
-            full_url = _full_variant(candidate.url)
-            if full_url is not None and full_url not in seen_urls:
-                ordered.append(
-                    _ImageCandidate(
-                        full_url,
-                        kind,
-                        (VARIANT_PRIORITY["full"], candidate.score[1], candidate.score[2]),
-                    )
-                )
-                seen_urls.add(full_url)
-            if candidate.url not in seen_urls:
-                ordered.append(candidate)
-                seen_urls.add(candidate.url)
-    return tuple(ordered)
+        with Image.open(BytesIO(data)) as image:
+            image.load()
+            if image_format == "JPEG":
+                return data, width, height
+            converted = image.convert("RGB")
+            output = BytesIO()
+            converted.save(output, format="JPEG", quality=95)
+            return output.getvalue(), width, height
 
 
-def _jpeg_bytes(data: bytes) -> bytes:
+def _ground_truth(record: _RegistryRecord) -> dict[str, str]:
+    return {
+        "ttbid": record.ttbid,
+        "brand_name": record.brand_name,
+        "fanciful_name": record.fanciful_name,
+        "class_type": record.class_type,
+        "origin_code": record.origin_code,
+        "origin_country": record.origin_country,
+        "bottler": record.bottler,
+        "source_url": record.source_url,
+    }
+
+
+def _manifest_row(filename: str, record: _RegistryRecord) -> dict[str, str]:
+    return {
+        "filename": filename,
+        "brand_name": record.brand_name,
+        "class_type": record.class_type,
+        "alcohol_content": "",
+        "net_contents": "",
+        "bottler": record.bottler,
+        "origin_country": record.origin_country,
+    }
+
+
+def _write_image(path: Path, data: bytes) -> None:
+    temporary_path = path.with_name(f".{path.name}.tmp")
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(BytesIO(data)) as probe:
-                if probe.width < 1 or probe.height < 1:
-                    raise ValueError("image has invalid dimensions")
-                if probe.width * probe.height > MAX_IMAGE_PIXELS:
-                    raise ValueError(f"image exceeds {MAX_IMAGE_PIXELS:,} pixels")
-                probe.verify()
-
-            with Image.open(BytesIO(data)) as image:
-                image.load()
-                if image.format == "JPEG":
-                    return data
-                converted = image.convert("RGB")
-                output = BytesIO()
-                converted.save(output, format="JPEG", quality=95)
-                return output.getvalue()
-    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
-        raise ValueError("image exceeds Pillow's safe decode limit") from error
+        temporary_path.write_bytes(data)
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
-def _product_code(product: Mapping[str, object]) -> str:
-    code = _text(product.get("code"))
-    return code if re.fullmatch(r"\d+", code) else ""
-
-
-def _fetch_product(
+def _fetch_record(
     client: _PoliteClient,
-    product: Mapping[str, object],
-    category: str,
+    ttbid: str,
     images_directory: Path,
     stats: _RunStats,
-) -> _KeptProduct | None:
-    code = _product_code(product)
-    identity = code or _text(product.get("product_name")) or "unknown product"
-    if not code:
-        stats.skip(identity, "missing or unsafe product code")
-        return None
+    remaining: int,
+) -> list[_KeptImage]:
+    detail_source_url = _detail_url(ttbid, "publicDisplaySearchBasic")
+    detail_response = client.get(detail_source_url, max_bytes=MAX_HTML_BYTES)
+    record = _parse_record(ttbid, _decode_html(detail_response), detail_source_url)
 
-    candidates = _image_candidates(product)
-    if not candidates:
-        stats.skip(code, "no usable back or front image URL")
-        return None
+    printable_url = _detail_url(ttbid, "publicFormDisplay")
+    printable_response = client.get(printable_url, max_bytes=MAX_HTML_BYTES)
+    attachments = _attachment_urls(_decode_html(printable_response))
+    if not attachments:
+        stats.skip(ttbid, "printable form contained no label-image attachments")
+        return []
 
-    failures: list[str] = []
-    for candidate in candidates:
+    kept: list[_KeptImage] = []
+    for attachment_number, attachment_url in enumerate(attachments, start=1):
+        if len(kept) >= remaining:
+            break
         try:
-            downloaded, source_url = client.get(candidate.url, max_bytes=MAX_IMAGE_BYTES)
-            jpeg_data = _jpeg_bytes(downloaded)
-        except (_FetchError, UnidentifiedImageError, OSError, SyntaxError, ValueError) as error:
-            failures.append(f"{candidate.kind} image: {_one_line(error)}")
+            response = client.get(attachment_url, max_bytes=MAX_IMAGE_BYTES)
+            if response.content_type == "text/html" or response.body.lstrip()[
+                :20
+            ].lower().startswith((b"<!doctype html", b"<html")):
+                raise _FetchError("attachment returned HTML; the COLAs Online session is invalid")
+            jpeg_data, width, height = _jpeg_bytes(response.body)
+            filename = f"{ttbid}-{attachment_number}.jpg"
+            _write_image(images_directory / filename, jpeg_data)
+        except (
+            _FetchError,
+            Image.DecompressionBombError,
+            Image.DecompressionBombWarning,
+            UnidentifiedImageError,
+            OSError,
+            SyntaxError,
+            ValueError,
+        ) as error:
+            stats.skip(f"{ttbid} attachment {attachment_number}", error)
             continue
 
-        filename = f"{code}.jpg"
-        image_path = images_directory / filename
-        temporary_image_path = images_directory / f".{filename}.tmp"
-        try:
-            temporary_image_path.write_bytes(jpeg_data)
-            temporary_image_path.replace(image_path)
-        except OSError as error:
-            temporary_image_path.unlink(missing_ok=True)
-            stats.skip(code, f"could not write image: {_one_line(error)}")
-            return None
-
-        abv = _extract_abv(product)
-        product_name = _text(product.get("product_name"))
-        brands = _text(product.get("brands"))
-        quantity = _extract_quantity(product)
-        return _KeptProduct(
+        kept_image = _KeptImage(
             filename=filename,
-            ground_truth={
-                "product_name": product_name,
-                "brands": brands,
-                "quantity": quantity,
-                "abv_if_present": abv,
-                "source_url": source_url,
-                "license": LICENSE,
-            },
-            manifest_row={
-                "filename": filename,
-                "brand_name": brands,
-                "class_type": _class_type(product, category),
-                "alcohol_content": abv,
-                "net_contents": quantity,
-                "bottler": "",
-                "origin_country": "",
-            },
-            used_back_image=candidate.kind == "back",
+            width=width,
+            height=height,
+            ground_truth=_ground_truth(record),
+            manifest_row=_manifest_row(filename, record),
         )
-
-    reason = failures[-1] if failures else "all image candidates failed"
-    stats.skip(code, reason)
-    return None
-
-
-def _log_skip(identity: str, reason: str) -> None:
-    print(f"skip {identity}: {_one_line(reason)}", file=sys.stderr)
+        kept.append(kept_image)
+        print(f"kept {filename}: {width}x{height}")
+    return kept
 
 
-def _write_metadata(out_directory: Path, products: Sequence[_KeptProduct]) -> None:
-    ground_truth = {product.filename: product.ground_truth for product in products}
+def _write_metadata(out_directory: Path, images: Sequence[_KeptImage]) -> None:
     ground_truth_path = out_directory / "ground_truth.json"
     manifest_path = out_directory / "manifest.csv"
-    temporary_ground_truth_path = out_directory / ".ground_truth.json.tmp"
-    temporary_manifest_path = out_directory / ".manifest.csv.tmp"
+    temporary_ground_truth = out_directory / ".ground_truth.json.tmp"
+    temporary_manifest = out_directory / ".manifest.csv.tmp"
     try:
-        temporary_ground_truth_path.write_text(
-            json.dumps(ground_truth, indent=2, ensure_ascii=False) + "\n",
+        temporary_ground_truth.write_text(
+            json.dumps(
+                {image.filename: image.ground_truth for image in images},
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
             encoding="utf-8",
         )
-        with temporary_manifest_path.open("w", encoding="utf-8", newline="") as manifest_file:
+        with temporary_manifest.open("w", encoding="utf-8", newline="") as manifest_file:
             writer = csv.DictWriter(
                 manifest_file,
                 fieldnames=MANIFEST_COLUMNS,
                 lineterminator="\n",
             )
             writer.writeheader()
-            writer.writerows(product.manifest_row for product in products)
-        temporary_ground_truth_path.replace(ground_truth_path)
-        temporary_manifest_path.replace(manifest_path)
+            writer.writerows(image.manifest_row for image in images)
+        temporary_ground_truth.replace(ground_truth_path)
+        temporary_manifest.replace(manifest_path)
     finally:
-        temporary_ground_truth_path.unlink(missing_ok=True)
-        temporary_manifest_path.unlink(missing_ok=True)
+        temporary_ground_truth.unlink(missing_ok=True)
+        temporary_manifest.unlink(missing_ok=True)
 
 
-def _remove_stale_images(
-    images_directory: Path,
-    products: Sequence[_KeptProduct],
-) -> None:
-    kept_filenames = {product.filename for product in products}
-    for image_path in images_directory.iterdir():
-        if (
-            image_path.is_file()
-            and re.fullmatch(r"\d+\.jpg", image_path.name)
-            and image_path.name not in kept_filenames
-        ):
+def _remove_stale_images(images_directory: Path, images: Sequence[_KeptImage]) -> None:
+    kept_filenames = {image.filename for image in images}
+    for image_path in images_directory.glob("*.jpg"):
+        if image_path.name not in kept_filenames:
             image_path.unlink()
 
 
@@ -594,97 +889,84 @@ def _fetch_corpus(
     *,
     limit: int,
     out_directory: Path,
-    categories: Sequence[str],
-    timeout: float,
-) -> tuple[list[_KeptProduct], int, dict[str, int]]:
+    delay: float,
+    product: str,
+    explicit_ttbids: Sequence[str],
+) -> tuple[list[_KeptImage], _RunStats, str | None]:
     images_directory = out_directory / "images"
     images_directory.mkdir(parents=True, exist_ok=True)
-    metadata_already_exists = any(
-        (out_directory / filename).exists() for filename in ("ground_truth.json", "manifest.csv")
-    )
-
-    client = _PoliteClient(timeout)
+    client = _PoliteClient(delay)
     stats = _RunStats()
-    streams: list[tuple[str, Iterator[Mapping[str, object]]]] = [
-        (category, _iter_products(client, category, stats)) for category in categories
-    ]
-    products: list[_KeptProduct] = []
-    per_category = dict.fromkeys(categories, 0)
-    seen_codes: set[str] = set()
-    cursor = 0
 
-    while streams and len(products) < limit:
-        category, stream = streams[cursor]
+    try:
+        search_page_response = client.get(SEARCH_PAGE_URL, max_bytes=MAX_HTML_BYTES)
+        search_page_html = _decode_html(search_page_response)
+    except _FetchError as error:
+        stats.skip("session", error)
+        return [], stats, "could not establish the COLAs Online session"
+
+    if explicit_ttbids:
+        ttbids = list(dict.fromkeys(explicit_ttbids))
+    else:
         try:
-            product = next(stream)
-        except StopIteration:
-            del streams[cursor]
-            if streams:
-                cursor %= len(streams)
-            continue
-        except Exception as error:
-            stats.skip(
-                f"{category} product stream",
-                f"unexpected search error: {_one_line(error)}",
-            )
-            del streams[cursor]
-            if streams:
-                cursor %= len(streams)
-            continue
+            ttbids = _search_ttbids(client, search_page_html, product)
+        except (_FetchError, _SearchError) as error:
+            stats.skip("search", error)
+            return [], stats, "registry search failed; retry with one or more --ttbid values"
 
-        cursor = (cursor + 1) % len(streams)
-        code = _product_code(product)
-        if code and code in seen_codes:
-            stats.skip(code, "duplicate product code")
-            continue
-        if code:
-            seen_codes.add(code)
-
+    kept: list[_KeptImage] = []
+    for ttbid in ttbids:
+        if len(kept) >= limit:
+            break
         try:
-            kept_product = _fetch_product(
-                client,
-                product,
-                category,
-                images_directory,
-                stats,
+            kept.extend(
+                _fetch_record(
+                    client,
+                    ttbid,
+                    images_directory,
+                    stats,
+                    limit - len(kept),
+                )
             )
-        except Exception as error:  # Keep malformed third-party data scoped to one product.
-            stats.skip(
-                code or "unknown product",
-                f"unexpected product error: {_one_line(error)}",
-            )
-            continue
-        if kept_product is None:
-            continue
+        except (
+            _FetchError,
+            UnidentifiedImageError,
+            OSError,
+            SyntaxError,
+            ValueError,
+        ) as error:
+            stats.skip(ttbid, error)
 
-        products.append(kept_product)
-        per_category[category] += 1
+    if kept:
+        try:
+            _write_metadata(out_directory, kept)
+            _remove_stale_images(images_directory, kept)
+        except OSError as error:
+            return kept, stats, f"could not finalize corpus metadata: {_one_line(error)}"
+    return kept, stats, None
 
-    if products or not metadata_already_exists:
-        _write_metadata(out_directory, products)
-    if products:
-        _remove_stale_images(images_directory, products)
-    return products, stats.skipped, per_category
 
-
-def main(argv: Sequence[str] | None = None) -> None:
-    """Build the local corpus while keeping third-party failures isolated."""
+def main(argv: Sequence[str] | None = None) -> int:
+    """Build a local, gitignored corpus while isolating bad registry records."""
 
     args = _parse_args(argv)
-    products, skipped, per_category = _fetch_corpus(
+    images, stats, run_error = _fetch_corpus(
         limit=args.limit,
         out_directory=args.out,
-        categories=args.categories,
-        timeout=args.timeout,
+        delay=args.delay,
+        product=args.product,
+        explicit_ttbids=args.ttbid,
     )
-    back_images = sum(product.used_back_image for product in products)
-    category_summary = ", ".join(
-        f"{category}={per_category[category]}" for category in args.categories
-    )
-    print(f"Summary: kept={len(products)} skipped={skipped}")
-    print(f"Per-category: {category_summary}")
-    print(f"Back-label images used: {back_images}")
+    origins = sum(bool(image.ground_truth["origin_country"]) for image in images)
+    print(f"Summary: kept={len(images)} skipped={stats.skipped} with_origin_country={origins}")
+    if run_error is not None:
+        print(f"error: {run_error}", file=sys.stderr)
+        return 1
+    if not images:
+        print("error: no label images were kept", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

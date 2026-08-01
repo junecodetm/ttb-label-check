@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 import labelcheck.ocr
 import labelcheck.pipeline
+import labelcheck.preprocess
 from labelcheck import batch as label_batch
 from labelcheck import report as batch_report
 from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
@@ -99,6 +100,15 @@ _NEUTRAL_OVERALL_STATUS = """
     <strong>Overall: Some or all checks were not completed.</strong>
 </div>
 """
+
+# Only advertise formats this host can actually decode: offering HEIC on a machine
+# without the wheel would take the upload and then fail it.
+_UPLOAD_TYPES = ["png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"] + (
+    ["heic", "heif"] if labelcheck.preprocess.HEIF_SUPPORTED else []
+)
+# Streamlit already lists the accepted extensions under the dropzone, so the label
+# stays plain rather than repeating them back as jargon.
+_UPLOAD_LABEL = "Label image"
 
 _SAMPLES_DIRECTORY = Path(__file__).resolve().parent / "samples"
 _SAMPLE_LABEL_FILENAME = "compliant-bourbon.png"
@@ -263,8 +273,8 @@ def _render_batch_page() -> None:
     with st.form("batch_label_check"):
         st.subheader("1. Upload all label images")
         uploaded_files = st.file_uploader(
-            "PNG or JPEG label images",
-            type=["png", "jpg", "jpeg"],
+            _UPLOAD_LABEL.replace("image", "images"),
+            type=_UPLOAD_TYPES,
             accept_multiple_files=True,
             help="Choose every label image in this group.",
         )
@@ -497,8 +507,8 @@ def main() -> None:
     with st.form("single_label_check"):
         st.subheader("1. Upload the label")
         uploaded_file = st.file_uploader(
-            "PNG or JPEG label image",
-            type=["png", "jpg", "jpeg"],
+            _UPLOAD_LABEL,
+            type=_UPLOAD_TYPES,
             help="For the clearest result, use a straight-on photo in good light.",
         )
         if sample_name:

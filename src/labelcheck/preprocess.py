@@ -95,6 +95,29 @@ def _validate_bgr_image(image: np.ndarray) -> None:
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
+def _register_heif_support() -> bool:
+    """Accept the format iPhones actually produce, without betting the deploy on it.
+
+    HEIC is the default camera format on every recent iPhone, which is what a
+    compliance agent photographing a bottle will have. The import is optional so a
+    host that cannot supply the wheel still runs: HEIC uploads then fail with the
+    ordinary unreadable-image message rather than taking the whole app down.
+    """
+
+    try:
+        import pillow_heif
+    except Exception:
+        return False
+    try:
+        pillow_heif.register_heif_opener()
+    except Exception:
+        return False
+    return True
+
+
+HEIF_SUPPORTED = _register_heif_support()
+
+
 class _ImageTooLarge(Exception):
     """Carry the size-guard rejection past the generic decode handler unchanged."""
 

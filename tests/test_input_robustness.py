@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from labelcheck import preprocess as preprocess_module
 from labelcheck.batch import MANIFEST_COLUMNS, ManifestError, parse_manifest
 from labelcheck.preprocess import preprocess_image
 
@@ -282,3 +283,29 @@ def test_manifest_rejects_duplicate_filename_that_differs_only_by_case() -> None
         "Row 3 repeats filename 'label.png'. "
         "Filenames must be unique even when letter case differs."
     )
+
+
+def test_iphone_heic_photo_decodes_when_the_optional_wheel_is_present() -> None:
+    """HEIC is the default iPhone camera format, so agents will upload it."""
+
+    pillow_heif = pytest.importorskip("pillow_heif")
+    assert preprocess_module.HEIF_SUPPORTED
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), (200, 120, 60)).save(buffer, format="HEIF")
+
+    decoded = preprocess_image(buffer.getvalue())
+
+    # Dimensions are not asserted exactly: a 64x48 image is below the OCR target, so
+    # preprocessing upscales it. What matters is that it decoded and kept its shape.
+    height, width = decoded.shape[:2]
+    assert decoded.shape[2] == 3
+    assert width > height
+    assert round(width / height, 2) == round(64 / 48, 2)
+    assert pillow_heif is not None
+
+
+def test_heic_support_is_reported_not_assumed() -> None:
+    """A host without the wheel must still import; the flag says which world we are in."""
+
+    assert isinstance(preprocess_module.HEIF_SUPPORTED, bool)

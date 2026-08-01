@@ -257,7 +257,7 @@ def test_batch_entry_is_separate_while_single_label_stays_the_default(
     assert [title.value for title in app.title] == ["Check many alcohol labels"]
     assert app.button[0].label == "Back to one label"
     assert [uploader.label for uploader in app.get("file_uploader")] == [
-        "PNG or JPEG label images",
+        "Label images",
         "Application values CSV",
     ]
 
