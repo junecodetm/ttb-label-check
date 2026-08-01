@@ -16,12 +16,13 @@ The 5-second figure is a requirement inherited from the brief, not a measured re
 
 Treat it as a budget to design against, then verify by measurement with `/bench-ocr`.
 
-| Stage | Budget (warm) |
-|---|---|
-| Decode + preprocess | ≤ 400ms |
-| OCR | ≤ 1.5s |
-| Extraction + rules | ≤ 100ms |
-| UI render | remainder |
+| Stage (warm, 18 samples across six variants) | Measured p50 | Measured p95 |
+|---|---:|---:|
+| Decode + preprocess | 30ms | 68ms |
+| OCR | 775ms | 1.070s |
+| Extraction + rules | 16ms | 22ms |
+| Pipeline end to end | 839ms | 1.117s |
+| UI render | Not measured | Not measured |
 
 Model load is excluded because it must happen **once at startup**, not per request.
 

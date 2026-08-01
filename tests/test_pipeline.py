@@ -162,6 +162,20 @@ def test_clean_preprocessing_is_conditional_and_low_resolution_is_upscaled() -> 
     assert min(low_resolution.shape[:2]) == 736
 
 
+def test_clean_image_returns_before_corrective_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_transform(_image: np.ndarray) -> np.ndarray:
+        raise AssertionError("clean image reached a corrective transform")
+
+    monkeypatch.setattr(preprocess_module, "_downscale_if_needed", unexpected_transform)
+    monkeypatch.setattr(preprocess_module, "_upscale_if_needed", unexpected_transform)
+
+    processed = preprocess_image(make_label())
+
+    assert processed.shape[:2] == (900, 1400)
+
+
 def test_oversized_image_is_capped_before_corrective_transforms(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -192,8 +206,8 @@ def test_oversized_image_is_capped_before_corrective_transforms(
     processed = preprocess_image(encoded.tobytes())
 
     assert deskew_shapes
-    assert max(deskew_shapes[0]) == 2000
-    assert max(processed.shape[:2]) == 2000
+    assert max(deskew_shapes[0]) == 1400
+    assert max(processed.shape[:2]) == 1400
 
 
 def test_extreme_aspect_ratio_never_upscales_past_the_ocr_cap() -> None:
@@ -203,7 +217,7 @@ def test_extreme_aspect_ratio_never_upscales_past_the_ocr_cap() -> None:
 
     processed = preprocess_image(encoded.tobytes())
 
-    assert max(processed.shape[:2]) == 2000
+    assert max(processed.shape[:2]) == 1400
 
 
 def test_exif_orientation_is_applied_before_quality_gates() -> None:
@@ -277,3 +291,28 @@ def test_ocr_wrapper_distinguishes_backend_failure_from_no_text() -> None:
 
     with pytest.raises(OcrError, match="OCR inference failed"):
         engine.recognize(np.zeros((20, 30, 3), dtype=np.uint8))
+
+
+def test_default_ocr_backend_uses_measured_runtime_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class Backend:
+        def __call__(self, _image):
+            return None, None
+
+    def build_backend(**kwargs: object) -> Backend:
+        captured.update(kwargs)
+        return Backend()
+
+    monkeypatch.setattr("labelcheck.ocr.RapidOCR", build_backend)
+
+    OcrEngine()
+
+    assert captured == {
+        "det_limit_side_len": 736,
+        "intra_op_num_threads": 6,
+        "max_side_len": 1400,
+        "use_cls": False,
+    }

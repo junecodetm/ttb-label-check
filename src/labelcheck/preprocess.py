@@ -369,6 +369,17 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
     current = _decode_with_exif(image_bytes)
     quality = assess_image_quality(current)
 
+    if not any(
+        (
+            quality.needs_downscale,
+            quality.needs_deskew,
+            quality.needs_perspective_correction,
+            quality.needs_clahe,
+            quality.needs_upscale,
+        )
+    ):
+        return np.ascontiguousarray(current, dtype=np.uint8)
+
     if quality.needs_downscale:
         try:
             current = _downscale_if_needed(current)

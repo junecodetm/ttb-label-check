@@ -6,6 +6,7 @@ from labelcheck.config import FLUID_OUNCE_TO_ML, GOVERNMENT_WARNING
 from labelcheck.normalize import (
     canonical_beverage_class,
     collapse_whitespace,
+    normalize_compact_fuzzy_text,
     normalize_fuzzy_text,
     normalize_identity_text,
     normalize_number,
@@ -58,6 +59,15 @@ def test_fuzzy_text_normalization_is_idempotent() -> None:
     once = normalize_fuzzy_text("  STONE'S-THROW, LLC ")
 
     assert normalize_fuzzy_text(once) == once
+
+
+def test_compact_fuzzy_text_removes_only_word_boundaries() -> None:
+    assert normalize_compact_fuzzy_text("OLDTOMDISTILLERY") == normalize_compact_fuzzy_text(
+        "OLD TOM DISTILLERY"
+    )
+    assert normalize_compact_fuzzy_text("Distillery Old Tom") != normalize_compact_fuzzy_text(
+        "Old Tom Distillery"
+    )
 
 
 def test_identity_text_does_not_drop_words_that_look_like_legal_suffixes() -> None:

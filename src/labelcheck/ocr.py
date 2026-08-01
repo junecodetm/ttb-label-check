@@ -9,6 +9,12 @@ import cv2
 import numpy as np
 from rapidocr_onnxruntime import RapidOCR
 
+from labelcheck.config import (
+    OCR_INTRA_OP_NUM_THREADS,
+    OCR_MAX_SIDE_PX,
+    OCR_TARGET_MIN_SIDE_PX,
+    OCR_USE_ANGLE_CLASSIFIER,
+)
 from labelcheck.models import TextBlock
 
 
@@ -24,7 +30,16 @@ class OcrEngine:
     """Contain the engine-specific API and serialize its mutable inference state."""
 
     def __init__(self, backend: _Backend | None = None) -> None:
-        self._backend: _Backend = backend if backend is not None else RapidOCR()
+        self._backend: _Backend = (
+            backend
+            if backend is not None
+            else RapidOCR(
+                det_limit_side_len=OCR_TARGET_MIN_SIDE_PX,
+                intra_op_num_threads=OCR_INTRA_OP_NUM_THREADS,
+                max_side_len=OCR_MAX_SIDE_PX,
+                use_cls=OCR_USE_ANGLE_CLASSIFIER,
+            )
+        )
         self._inference_lock = threading.Lock()
 
     def recognize(self, image: np.ndarray) -> list[TextBlock]:

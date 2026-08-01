@@ -30,21 +30,52 @@ The 27 CFR 16.21 text in `src/labelcheck/config.py` is reproduced from memory. A
 
 **Discharge:** run `/verify-cfr-text`. Until then, a passing warning test only proves the tool matches a string that may itself be wrong.
 
-### **OPEN** — the OCR engine choice is only partly verified
+### **CLOSED 2026-07-31** — the OCR engine choice is measured on the fixture corpus
 
-RapidOCR was chosen over EasyOCR on install size and inference characteristics. As of 2026-07-31 the size claim is **confirmed** (3 ONNX files, 16.2 MB, bundled in the wheel, no runtime download) and model load is **confirmed** cheap at 0.19s.
+RapidOCR was benchmarked warm on all six deterministic synthetic variants. Semantic field
+accuracy counts the six visible values (brand, class/type, alcohol, net contents, bottler, and
+government warning) through the production rules; optional domestic origin and the duplicate or
+heuristic warning subchecks are excluded.
 
-What remains untested is the part that actually decides the choice: **EasyOCR has never been installed or run**, so the "faster" claim is still unmeasured, and accuracy on ornate distillery typography — the predicted weak spot — has not been checked at all. Only a synthetic single-line image has been read successfully.
+| Variant | Before normalization fix | Final | Remaining misses |
+|---|---:|---:|---|
+| Clean control | 6/6 | 6/6 | — |
+| Ornate/script | 5/6 | 6/6 | — |
+| Rotated | 6/6 | 6/6 | — |
+| Glare | 6/6 | 6/6 | — |
+| Low resolution | 3/6 | 3/6 | alcohol punctuation, merged bottler words, warning spacing |
+| Combined adversarial | 3/6 | 4/6 | alcohol punctuation and warning spacing |
 
-**Discharge:** run `/bench-ocr`. See `docs/adr/0001-ocr-engine.md`.
+EasyOCR was **deliberately not installed or run**, so this is not a head-to-head speed claim.
+EasyOCR brings PyTorch and roughly 800 MB of installed weight against RapidOCR's 16.2 MB of
+in-wheel ONNX models. It therefore cannot win the latency and cold-start axis being optimized
+without first conflicting with the HuggingFace Spaces free-tier target.
 
-### **OPEN** — the 5-second budget is inherited, not measured
+The revisit trigger is accuracy on real photographed labels: if RapidOCR proves inadequate on
+stylized typography outside this synthetic corpus, EasyOCR becomes the fallback. The engine
+boundary keeps that swap confined to `src/labelcheck/ocr.py`; the rest of the pipeline continues
+to consume `TextBlock` values with bounding boxes.
 
-The per-stage budget in `.claude/rules/performance.md` is a target derived from Sarah Chen's requirement, not from timing this application on real labels.
+### **CLOSED 2026-07-31** — the 5-second budget is measured
 
-One data point exists and it is not reassuring: OCR on a **synthetic 600×120 single-line image** took 1.05s against a 1.5s budget for that stage. A real 2000px label with a dozen text regions will be slower. OCR is the stage most likely to miss.
+Model startup was excluded after an explicit warm-up. On the clean fixture, the supplied 20-run
+baseline from `tools/time_single.py` was p50 **1.003s** / p95 **1.148s**. After optimization, the
+same 20-run tool measured p50 **0.803s** / p95 **0.961s**: 19.9% lower at p50 and 16.3% lower at
+p95.
 
-**Discharge:** run `/bench-ocr` on real label images, then replace the estimates with measured p50 and p95 figures. If the budget cannot be met, say so and record the real number rather than shipping past it.
+The broader 18-sample benchmark (three timed runs across each of six variants) moved from p50
+**0.949s** / p95 **1.341s** before changes to p50 **0.839s** / p95 **1.117s** after the final clean
+fast-path change. Its final per-stage measurements were:
+
+| Warm stage | p50 | p95 |
+|---|---:|---:|
+| Decode + preprocess | 0.030s | 0.068s |
+| OCR | 0.775s | 1.070s |
+| Extraction + rules | 0.016s | 0.022s |
+| Pipeline end to end | 0.839s | 1.117s |
+
+The 5-second requirement is met with substantial headroom. These are local macOS arm64 /
+CPython 3.11.15 synthetic-fixture results, not a production-hardware or real-photograph SLA.
 
 ---
 

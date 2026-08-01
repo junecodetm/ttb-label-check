@@ -182,9 +182,13 @@ WARNING_TYPE_SIZE_EXPECTATION = "Compliant minimum government-warning type size"
 # Image-quality gates are tuned for RapidOCR's default detector, whose shortest-side target is
 # 736 px. They keep clean studio images on the decode-only path while bounding corrective work.
 QUALITY_ANALYSIS_MAX_SIDE_PX = 1000
-OCR_MAX_SIDE_PX = 2000
+OCR_MAX_SIDE_PX = 1400
 OCR_TARGET_MIN_SIDE_PX = 736
 OCR_MAX_UPSCALE_FACTOR = 2.0
+# Measured on the 10-core development host across every synthetic benchmark variant. RapidOCR
+# calls its 0/180-degree crop classifier `use_cls`; EXIF handling and deskew cover the fixture set.
+OCR_USE_ANGLE_CLASSIFIER = False
+OCR_INTRA_OP_NUM_THREADS = 6
 BLUR_VARIANCE_THRESHOLD = 80.0
 MIN_DESKEW_ANGLE_DEGREES = 1.0
 MAX_DESKEW_ANGLE_DEGREES = 15.0

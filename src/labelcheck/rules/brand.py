@@ -2,7 +2,7 @@ from rapidfuzz.fuzz import token_sort_ratio
 
 from labelcheck.config import FUZZY_PASS_THRESHOLD, FUZZY_REVIEW_THRESHOLD
 from labelcheck.models import FieldResult, Status
-from labelcheck.normalize import normalize_fuzzy_text
+from labelcheck.normalize import normalize_compact_fuzzy_text, normalize_fuzzy_text
 
 
 def verify(
@@ -35,7 +35,10 @@ def verify(
             "Brand text was not located, so the check was not evaluated.",
         )
 
-    confidence = float(token_sort_ratio(normalized_extracted, normalized_expected))
+    if normalize_compact_fuzzy_text(extracted) == normalize_compact_fuzzy_text(expected):
+        confidence = 100.0
+    else:
+        confidence = float(token_sort_ratio(normalized_extracted, normalized_expected))
     if confidence >= FUZZY_PASS_THRESHOLD:
         status = Status.PASS
         detail = f"Brand matched after normalization (similarity {confidence:.1f})."

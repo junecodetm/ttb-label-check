@@ -27,6 +27,13 @@ def test_brand_token_order_variation_passes() -> None:
     assert result.status is Status.PASS
 
 
+def test_brand_lost_ocr_word_spacing_passes() -> None:
+    result = verify("OLDTOMDISTILLERY", "OLD TOM DISTILLERY")
+
+    assert result.status is Status.PASS
+    assert result.confidence == 100.0
+
+
 def test_brand_that_is_only_a_suffix_like_word_still_compares() -> None:
     result = verify("Company", "Company")
 

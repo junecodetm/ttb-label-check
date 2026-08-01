@@ -76,6 +76,12 @@ def normalize_fuzzy_text(value: str) -> str:
     return " ".join(tokens)
 
 
+def normalize_compact_fuzzy_text(value: str) -> str:
+    """Treat lost OCR word boundaries as layout while preserving character order."""
+
+    return normalize_fuzzy_text(value).replace(" ", "")
+
+
 def normalize_origin_text(value: str) -> str:
     """Remove standard label boilerplate before comparing a manifest country value."""
 
