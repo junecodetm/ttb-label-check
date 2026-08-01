@@ -21,3 +21,6 @@ uploads/
 # Benchmark images generated on demand by tools/make_bench_images.py. Regenerable,
 # so they are never committed.
 .bench_images/
+
+# Playwright MCP session artifacts from browser-driven verification.
+.playwright-mcp/
