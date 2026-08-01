@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -18,6 +19,10 @@ import labelcheck.preprocess
 from labelcheck import batch as label_batch
 from labelcheck import report as batch_report
 from labelcheck.models import ApplicationRecord, FieldResult, LabelReport, Status
+
+# Agents see plain-language errors; the traceback still has to land somewhere a
+# developer can find it, or every fault degrades into "could not read this label".
+_LOGGER = logging.getLogger(__name__)
 
 _FIELD_LABELS = {
     "brand_name": "Brand name",
@@ -379,6 +384,7 @@ def _handle_batch_submission(
             for upload in uploaded_files or ()
         ]
     except Exception:
+        _LOGGER.exception("Reading the uploaded batch files failed.")
         st.error("One of these files could not be opened. Choose the files again and retry.")
         return
     if not manifest_bytes:
@@ -424,6 +430,7 @@ def _handle_batch_submission(
         st.error(str(error))
         return
     except Exception:
+        _LOGGER.exception("Batch verification failed.")
         st.error(
             "The labels could not be checked. Keep this page open, confirm the files, and retry."
         )
@@ -521,6 +528,7 @@ def main() -> None:
     try:
         _warm_ocr_engine()
     except Exception:
+        _LOGGER.exception("OCR engine warm-up failed.")
         st.error("The label reader could not start. Reload the page and try again.")
         return
 
@@ -606,6 +614,7 @@ def _handle_single_submission(
     try:
         image_bytes = uploaded_file.getvalue() if uploaded_file is not None else sample_bytes
     except Exception:
+        _LOGGER.exception("Reading the uploaded image failed.")
         st.error("We could not open this image. Choose another image and try again.")
         return
     if not image_bytes:
@@ -626,6 +635,7 @@ def _handle_single_submission(
         report = labelcheck.pipeline.verify(image_bytes, application)
         elapsed_seconds = perf_counter() - started_at
     except Exception:
+        _LOGGER.exception("Verification raised for an uploaded label.")
         st.error(
             "We could not read this label. Try a clear, straight-on PNG or JPEG in better light."
         )
@@ -634,6 +644,7 @@ def _handle_single_submission(
     try:
         _render_report(report, elapsed_seconds, image_bytes=image_bytes)
     except Exception:
+        _LOGGER.exception("Rendering the finished report failed.")
         st.error(
             "The label was checked, but the results could not be displayed. Reload the "
             "page and try again."

@@ -1,9 +1,3 @@
----
-title: Alcohol Label Verification
-sdk: docker
-app_port: 8501
----
-
 # Alcohol label verification
 
 **Live app:** https://ttb-label-check.streamlit.app

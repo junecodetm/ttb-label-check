@@ -8,7 +8,8 @@
    under *"Where the rest of the guidance lives"*. The rules in `.claude/rules/` are
    binding, not advisory. Read the rule **before** writing the module, not after.
 
-`README.md` is the source-of-truth brief. `RESOURCES.md` is advisory only.
+`docs/brief.md` is the source-of-truth brief; `README.md` is the deliverable written
+against it. `RESOURCES.md` is advisory only.
 
 ## Hard boundaries — do not cross
 
@@ -16,8 +17,8 @@
   working tree dirty; the orchestrator commits.
 - **Never edit** `requirements.txt`, `requirements-dev.txt`, `.claude/**`, `docs/cfr/**`,
   or `AGENTS.md`.
-- **Never add a dependency.** The pinned set in `requirements.txt` is what HuggingFace
-  Spaces installs and what the venv has. If you believe you need a new package, stop and
+- **Never add a dependency.** The pinned set in `requirements.txt` is what Streamlit
+  Community Cloud installs and what the venv has. If you believe you need a new package, stop and
   say so in your summary instead of installing it.
 - **Never introduce a model that downloads weights at runtime.** RapidOCR's weights ship
   inside the wheel; that property is load-bearing for the deployment target.

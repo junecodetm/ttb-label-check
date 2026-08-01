@@ -32,11 +32,11 @@ Model load is excluded because it must happen **once at startup**, not per reque
 
 2. **Run batches through a worker pool with visible progress.** Streamlit's rerun model is single-threaded by default. 300 sequential labels with no progress indicator is the exact failure mode that killed the vendor pilot: the work may finish, but the agent has already given up.
 
-## HuggingFace Spaces cold start
+## Cold start on the deployment host
 
-The free tier sleeps after inactivity, so weights must be present at **build** time, never fetched on first request. A cold-start download would blow the entire budget on the first label an evaluator tries — the only one that shapes their impression.
+Streamlit Community Cloud's free tier (like the HuggingFace Spaces tier originally targeted) sleeps after inactivity, so weights must be present at **install** time, never fetched on first request. A cold-start download would blow the entire budget on the first label an evaluator tries — the only one that shapes their impression.
 
-**Already satisfied, verified 2026-07-31:** `rapidocr-onnxruntime==1.4.4` ships its weights inside the wheel (3 ONNX files, 16.2 MB), so `pip install` in the Dockerfile handles this with no separate download step. The live risk is now the opposite one: do not switch to a non-default model that fetches at runtime, and do not add a lazy loader.
+**Already satisfied, verified 2026-07-31:** `rapidocr-onnxruntime==1.4.4` ships its weights inside the wheel (3 ONNX files, 16.2 MB), so `pip install` handles this with no separate download step. The live risk is now the opposite one: do not switch to a non-default model that fetches at runtime, and do not add a lazy loader.
 
 ## First data point (not the benchmark)
 

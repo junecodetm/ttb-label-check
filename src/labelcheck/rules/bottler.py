@@ -45,6 +45,9 @@ def verify(
             "Bottler matches after cosmetic normalization.",
         )
 
+    # Unlike brand and class/type, there is no fuzzy PASS band here. A bottler identity
+    # and address that only nearly match is precisely what needs an agent's judgment;
+    # only a cosmetically-identical value may auto-clear.
     confidence = float(token_sort_ratio(normalized_extracted, normalized_expected))
     one_value_extends_the_other = normalized_extracted.startswith(
         f"{normalized_expected} "
