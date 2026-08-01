@@ -119,6 +119,7 @@ _SAMPLE_VALUES_KEY = "labelcheck_sample_values"
 _BATCH_VIEW_KEY = "labelcheck_batch_view"
 _BATCH_RESULTS_KEY = "labelcheck_batch_results"
 _BATCH_FRAME_KEY = "labelcheck_batch_frame"
+_BATCH_PARTIAL_KEY = "labelcheck_batch_partial"
 
 
 class _UploadedFile(Protocol):
@@ -392,10 +393,14 @@ def _handle_batch_submission(
 
     progress = st.progress(0.0, text="Completed 0 labels")
     st.caption(
-        "A large batch takes a few minutes. You can stop it with the Stop control at "
-        "the top of the page and keep the labels already checked."
+        "A large batch takes a few minutes. If you stop it, the labels already checked "
+        "are kept and shown."
     )
     started_at = perf_counter()
+    # Stopping a Streamlit run raises inside run_batch, so nothing it returns survives.
+    # Each finished label is therefore banked in session state as it arrives, which is
+    # what makes the promise above true rather than decorative.
+    st.session_state[_BATCH_PARTIAL_KEY] = []
 
     def show_progress(completed: int, total: int) -> None:
         fraction = completed / total if total else 1.0
@@ -404,11 +409,15 @@ def _handle_batch_submission(
             text=_progress_text(completed, total, perf_counter() - started_at),
         )
 
+    def bank_result(result: object) -> None:
+        st.session_state[_BATCH_PARTIAL_KEY].append(result)
+
     try:
         results = label_batch.run_batch(
             images,
             manifest,
             progress_callback=show_progress,
+            result_callback=bank_result,
         )
         elapsed_seconds = perf_counter() - started_at
     except label_batch.BatchInputError as error:
@@ -432,7 +441,14 @@ def _render_saved_batch_results() -> None:
     results = st.session_state.get(_BATCH_RESULTS_KEY)
     frame = st.session_state.get(_BATCH_FRAME_KEY)
     if not isinstance(results, list) or frame is None:
-        return
+        results = _stopped_batch_results()
+        if results is None:
+            return
+        st.warning(
+            f"This batch was stopped before it finished. Here are the {len(results)} "
+            "labels that were checked. The rest were not checked."
+        )
+        frame = batch_report.results_to_dataframe(results)
 
     st.subheader("Review the results")
     st.write("Problems appear first. You can sort the table by choosing a column heading.")
@@ -463,9 +479,19 @@ def _render_saved_batch_results() -> None:
             _render_field(field_name, result)
 
 
+def _stopped_batch_results() -> list | None:
+    """Recover the labels a stopped batch had already finished, or None if there are none."""
+
+    partial = st.session_state.get(_BATCH_PARTIAL_KEY)
+    if not isinstance(partial, list) or not partial:
+        return None
+    return label_batch.sort_results(partial)
+
+
 def _clear_batch_results() -> None:
     st.session_state.pop(_BATCH_RESULTS_KEY, None)
     st.session_state.pop(_BATCH_FRAME_KEY, None)
+    st.session_state.pop(_BATCH_PARTIAL_KEY, None)
 
 
 def main() -> None:
@@ -568,7 +594,7 @@ def _handle_single_submission(
 
     sample_bytes = st.session_state.get(_SAMPLE_IMAGE_KEY)
     if uploaded_file is None and not sample_bytes:
-        st.error("Upload a PNG or JPEG label image, then choose Check label again.")
+        st.error("Upload a label image, then choose Check label again.")
         return
     if not all((brand_name, class_type, alcohol_content, net_contents, bottler)):
         st.error(
@@ -580,10 +606,10 @@ def _handle_single_submission(
     try:
         image_bytes = uploaded_file.getvalue() if uploaded_file is not None else sample_bytes
     except Exception:
-        st.error("We could not open this image. Choose another PNG or JPEG and try again.")
+        st.error("We could not open this image. Choose another image and try again.")
         return
     if not image_bytes:
-        st.error("This image is empty. Choose a different PNG or JPEG and try again.")
+        st.error("This image is empty. Choose a different image and try again.")
         return
 
     application = ApplicationRecord(

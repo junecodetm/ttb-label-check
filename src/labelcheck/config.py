@@ -83,11 +83,22 @@ NUMBER_CANDIDATE_PATTERN = r"[+-]?(?:[0-9][0-9.,]*|\.[0-9][0-9.,]*)"
 # artwork, matching only the "alc/vol" form left the field unevaluated on labels
 # that plainly stated it. Separators are \s* rather than \s+ because OCR routinely
 # loses inter-word spaces on stylised label typography.
+# Every alternative is CONTIGUOUS and uses at most a single optional space between
+# tokens. An earlier version chained `\s*` around optional groups, which made a failed
+# match backtrack super-linearly: "ALC" + 2000 spaces + "X" took 9.8s, and that string
+# can arrive in a manifest cell. Keep each branch anchored to a literal sequence.
+#
+# A bare "by volume" is deliberately NOT a marker. It matches juice-content and
+# nutrition panels -- "GRAPE JUICE 100% BY VOLUME" parsed as 100% alcohol -- and an
+# unevaluated field an agent reviews beats a confident wrong number.
 ABV_MARKER_PATTERN = (
-    r"(?:\balc(?:ohol)?\b\.?\s*(?:content)?\s*(?:/|by)?\s*vol(?:ume)?\b\.?"
-    r"|\babv\b"
-    r"|\bby\s*vol(?:ume)?\b\.?"
-    r"|\balcohol\s*content\b)"
+    # \b after vol is load-bearing: without it "45% Alc/Volcano" reads as 45% alcohol.
+    r"(?:\balc(?:ohol)?\.? ?/ ?vol(?:ume)?\b\.?"
+    r"|\balc(?:ohol)?\.? ?by ?vol(?:ume)?\b\.?"
+    # No trailing \b: OCR joins the marker to the number ("Alcohol Content40%"), and a
+    # word boundary cannot hold between a letter and a digit.
+    r"|\balcohol ?content"
+    r"|\babv)"
 )
 ABV_MARKER_SIGNAL_PATTERN = r"\b(?:alc|alcohol|abv)\b"
 ABV_PATTERN = (
@@ -174,10 +185,14 @@ def abv_tolerance_for(canonical_class: str, labeled_abv: Decimal) -> Decimal:
 # `canonical_beverage_class` resolves ties by longest keyword, so compound terms such
 # as "barley wine" (a malt beverage) correctly outrank the bare "wine".
 #
-# A term is listed only where the category is unambiguous. Genuinely ambiguous
-# products — hard seltzer, hard lemonade, wine coolers — are deliberately absent so
-# they resolve to no class and the alcohol rule routes them to REVIEW rather than
-# silently applying the wrong statutory tolerance.
+# A term is listed only where the category is unambiguous. Hard seltzer and hard
+# lemonade are deliberately absent: their base alcohol is not determinable from the
+# class wording, so they resolve to no class and the alcohol rule routes them to
+# REVIEW rather than silently applying the wrong statutory tolerance.
+#
+# Note a limit of substring matching: "wine cooler" resolves to wine because it
+# contains the word, though such products are often malt-based. Excluding it would
+# need a negative-term mechanism this table does not have.
 BEVERAGE_CLASS_KEYWORDS = (
     (
         # Malt beverage class designations, 27 CFR 7.142-7.145.

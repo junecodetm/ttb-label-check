@@ -62,7 +62,9 @@ def verify(
             Status.REVIEW,
             expected,
             extracted,
-            EXACT_MATCH_CONFIDENCE,
+            # Not EXACT_MATCH_CONFIDENCE: word spacing was never confirmed, and a
+            # perfect score next to a REVIEW would overstate what was checked.
+            None,
             crop,
             "Government warning wording matches the statutory text exactly, but the "
             "reader could not resolve the spaces between words. Check the crop to "
@@ -121,7 +123,7 @@ def verify_prefix(
             Status.REVIEW,
             GOVERNMENT_WARNING_PREFIX,
             extracted_prefix,
-            EXACT_MATCH_CONFIDENCE,
+            None,
             crop,
             "The prefix is uppercase and correct, but the reader could not resolve the "
             "space in GOVERNMENT WARNING. Check the crop.",

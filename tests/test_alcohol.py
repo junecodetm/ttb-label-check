@@ -1,4 +1,10 @@
+import time
+from decimal import Decimal
+
+import pytest
+
 from labelcheck.models import Status
+from labelcheck.normalize import parse_abv
 from labelcheck.rules.alcohol import verify
 
 
@@ -136,3 +142,49 @@ def test_alcohol_result_preserves_raw_values_and_crop() -> None:
     assert result.expected == "45% Alc./Vol."
     assert result.extracted == "45% ABV"
     assert result.crop is crop
+
+
+def test_adversarial_alcohol_text_cannot_stall_the_parser() -> None:
+    """A manifest cell must not be able to burn a worker thread.
+
+    An earlier marker pattern chained optional groups around \\s*, so a failed match
+    backtracked super-linearly: "ALC" plus 2000 spaces took 9.8 seconds, and 300 such
+    rows would have stalled a batch for the better part of an hour.
+    """
+
+    hostile = "ALC" + " " * 4000 + "X"
+
+    started = time.perf_counter()
+    try:
+        parse_abv(hostile)
+    except ValueError:
+        pass  # Rejecting it is fine. Taking ten seconds to reject it is not.
+    assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "GRAPE JUICE 100% BY VOLUME",
+        "SERVING FACTS 5 fl oz 12% BY VOLUME",
+        "CONTAINS 30% BY VOLUME FRUIT JUICE",
+    ],
+)
+def test_percent_by_volume_alone_is_not_an_alcohol_statement(line: str) -> None:
+    """Juice-content and nutrition panels state percentages that are not alcohol."""
+
+    assert parse_abv(line) is None
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("45% Alc./Vol. (90 Proof)", Decimal("45")),
+        ("Alcohol Content 40% by Vol", Decimal("40")),
+        ("Alcohol Content40% by Vol", Decimal("40")),
+        ("40% ABV", Decimal("40")),
+        ("5.5% alcohol by volume", Decimal("5.5")),
+    ],
+)
+def test_real_label_alcohol_wordings_are_read(line: str, expected: Decimal) -> None:
+    assert parse_abv(line) == expected
