@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Pre-code.** No application source exists yet. The module layout below is a specification, not a description — and the commands are forward-looking, so do not run them expecting them to work until the corresponding files exist.
+**Built.** `app.py`, `src/labelcheck/` and `tests/` all exist and pass; the module layout below now describes the codebase rather than specifying it, and the commands work as written.
 
-- `README.md` is the **source of truth**. It is a TTB take-home brief: build an AI-powered alcohol label verification prototype that checks label artwork against the field values in a COLA application.
+- `docs/brief.md` is the **source of truth**: the original TTB take-home brief. `README.md` is the deliverable README with setup, approach, measurements, and limitations for evaluators.
 - `RESOURCES.md` is an **advisory** stack recommendation, not binding. It is superseded on the OCR engine only — see `docs/adr/0001-ocr-engine.md`.
 
 <!-- Once src/ exists, the module tree below becomes derivable from the codebase and should be
@@ -33,7 +33,7 @@ The brief also states the grading preference directly: *"A working core applicat
 
 ## Commands
 
-> Forward-looking. None of these work until the corresponding files exist.
+> All of these work as written.
 
 ```bash
 # Environment — ALREADY BUILT and verified (CPython 3.11.15, all imports resolve).

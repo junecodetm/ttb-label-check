@@ -1,118 +1,84 @@
-# **Take-Home Project: AI-Powered Alcohol Label Verification App**
+---
+title: Alcohol Label Verification
+sdk: docker
+app_port: 8501
+---
 
-## **Project Background & Stakeholder Context**
+# Alcohol label verification
 
-*The following document contains notes from our discovery sessions with the Compliance Division, along with technical requirements for the prototype. We've included stakeholder feedback to give you context on how this tool will be used.*
+Deployed URL: **TBD** (the orchestrator will add the HuggingFace Spaces URL after deployment)
 
-### **Interview Notes: Sarah Chen, Deputy Director of Label Compliance**
+This is an offline tool that checks alcohol label artwork against the field values in a COLA application and shows a compliance agent what matches, what does not, and what still needs human judgment.
 
-*Conducted Tuesday, 3:15 PM — Sarah was running late from her daughter's school play rehearsal*
+## Setup and run
 
-"Thanks for meeting with me. Sorry about the delay—my daughter's playing the lead in her school's production of *Annie*next week and rehearsals have been crazy. Anyway, let me tell you about what we're dealing with here.
+The project targets Python 3.11. Create the environment and install the application plus development tools with:
 
-So the TTB reviews about 150,000 label applications a year. Our team of 47 agents handles all of them. Back in the 80s—before my time—they actually had over 100 agents, but budget cuts, you know how it goes. We've been doing things basically the same way since the COLA system went online in 2003. That was a big upgrade from paper forms, believe it or not.
-
-The actual review process is pretty straightforward. An agent pulls up an application, looks at the label artwork, and checks that what's on the label matches what's in the application. Brand name matches? Check. ABV is correct? Check. Government warning is there? Check. It takes maybe 5-10 minutes per application for a simple one, longer if there are issues.
-
-Here's the thing though—and this is what got leadership interested in AI—a lot of what we do is just... matching. Like literally just making sure the number on the form is the same as the number on the label. My agents spend half their day doing what's essentially data entry verification. It's not that they can't do more complex analysis, it's that they're drowning in routine stuff.
-
-Oh, I should mention—we tried a pilot with the scanning vendor last year. Disaster. The system would take 30, 40 seconds sometimes to process a single label. Our agents just went back to doing it by eye because they could do five labels in the time it took the machine to do one. **If we can't get results back in about 5 seconds, nobody's going to use it.** We learned that the hard way.
-
-What else... The agents really vary in their tech comfort level. Dave's been here since the Clinton administration and still prints his emails. Meanwhile, Jenny's fresh out of college and probably could have built this tool herself. We need something **my mother could figure out**—she's 73 and just learned to video call her grandkids last year, if that gives you a benchmark. Half our team is over 50. Clean, obvious, no hunting for buttons.
-
-One more thing that came up in our last team meeting—during peak season, we get these big importers who dump 200, 300 label applications on us at once. Right now we literally have to process them one at a time. If there was some way to **handle batch uploads**, that would be huge. Janet from our Seattle office has been asking about this for years."
-
-### **Interview Notes: Marcus Williams, IT Systems Administrator**
-
-*Coffee chat, Thursday morning*
-
-"Sarah probably gave you the business side. Let me fill you in on some of the technical landscape.
-
-Our current infrastructure is... well, it's government infrastructure, let's leave it at that. We're on Azure now after the migration in 2019. That was a whole thing—don't get me started on the FedRAMP certification process. Took 18 months just for the paperwork.
-
-The COLA system is built on .NET, though there's been talk about modernizing it for years. We had a contractor come in last summer to do an assessment and they quoted us $4.2 million for a full rebuild. That went nowhere, obviously.
-
-For this prototype, we're not looking to integrate with COLA directly—that's a whole different beast with its own authorization requirements. Think of this as a standalone proof-of-concept that could potentially inform future procurement decisions. If it works well, maybe we look at how to incorporate it into the workflow. But that's years away, realistically.
-
-Security-wise, we'd need to be careful with any production deployment—there's PII considerations, document retention policies, the usual federal compliance stuff. But for a prototype? Just don't do anything crazy. We're not storing anything sensitive for this exercise.
-
-Oh, and our network blocks outbound traffic to a lot of domains, so keep that in mind if you're thinking about cloud APIs. During the scanning vendor pilot, half their features didn't work because our firewall blocked connections to their ML endpoints. Classic."
-
-### **Interview Notes: Dave Morrison, Senior Compliance Agent (28 years)**
-
-*Brief hallway conversation*
-
-"Look, I'll be honest, I've seen a lot of these 'modernization' projects come and go. Remember the automated phone system they put in back in 2008? Supposed to reduce call volume. We ended up with more calls because nobody could figure out how to navigate it.
-
-The thing about label review is there's nuance. You can't just pattern match everything. Like, I had one last week where the brand name was 'STONE'S THROW' on the label but 'Stone's Throw' in the application. Technically a mismatch? Sure. But it's obviously the same thing. You need judgment.
-
-That said, I'm not against new tools. If something can help me get through my queue faster, great. Just don't make my life harder in the process. I spend enough time fighting with COLA as it is."
-
-### **Interview Notes: Jenny Park, Junior Compliance Agent (8 months)**
-
-*Teams call, Friday afternoon*
-
-"I'm so excited you're working on this! When I started here, I was kind of shocked at how manual everything is. Like, I literally have a printed checklist on my desk that I go through for every label. Brand name—check with my eyes. ABV—check with my eyes. Warning statement—check with my eyes. It's 2024!
-
-The one thing I'd say is the warning statement check is actually trickier than it sounds. It has to be **exact**. Like, word-for-word, and the 'GOVERNMENT WARNING:' part has to be in all caps and bold. Sarah probably mentioned this but people try to get creative with the warning all the time. Smaller font, different wording, burying it in tiny text. I caught one last month where they used 'Government Warning' in title case instead of all caps. Rejected.
-
-Also—and this is maybe out of scope for a prototype—but it would be amazing if the tool could handle images that aren't perfectly shot. I've seen labels that are photographed at weird angles, or the lighting is bad, or there's glare on the bottle. Right now if an agent can't read the label they just reject it and ask for a better image. But if AI could handle some of that..."
-
-## **Technical Requirements**
-
-You are free to use any programming languages, frameworks, or libraries you prefer. We want to see what kind of engineering, design, and integration decisions you make.
-
-## **Additional Context**
-
-### **About TTB Label Requirements**
-
-For reference, TTB requires specific information on alcohol beverage labels. The exact requirements vary by beverage type (beer, wine, distilled spirits) but common elements include:
-
-- Brand name
-- Class/type designation
-- Alcohol content (with some exceptions for certain wine/beer)
-- Net contents
-- Name and address of bottler/producer
-- Country of origin for imports
-- **Government Health Warning Statement** (mandatory on all alcohol beverages)
-
-We encourage you to review TTB's guidelines at ttb.gov for additional context on label requirements.
-
-### **Sample Label**
-
-Your app should handle labels containing information like the example below:
-
-**Example Distilled Spirits Label Fields:**
-
-- Brand Name: "OLD TOM DISTILLERY"
-- Class/Type: "Kentucky Straight Bourbon Whiskey"
-- Alcohol Content: "45% Alc./Vol. (90 Proof)"
-- Net Contents: "750 mL"
-- Government Warning: \[Standard government warning text\]
-
-*We encourage you to create or source additional test labels—AI image generation tools work well for this.*
-
-## **Deliverables**
-
-1. **Source Code Repository** (GitHub or similar)
-   - All source code
-   - README with setup and run instructions
-   - Brief documentation of approach, tools used, assumptions made
-2. **Deployed Application URL**
-   - Working prototype we can access and test
-
-## **Evaluation Criteria**
-
-- Correctness and completeness of core requirements
-- Code quality and organization
-- Appropriate technical choices for the scope
-- User experience and error handling
-- Attention to requirements
-- Creative problem-solving
-
-We understand this is time-constrained. A working core application with clean code is preferred over ambitious but incomplete features. Document any trade-offs or limitations.
-
-*Questions? Reach out for clarification—though we also value how you fill in gaps independently.*
-
-Good luck!
+```bash
+uv venv --python 3.11
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+.venv/bin/streamlit run app.py
 ```
+
+`uv venv` does not create `.venv/bin/pip`. Keep using `uv pip install`, with the environment's Python selected as shown above. For a runtime-only local install, use `requirements.txt` instead of `requirements-dev.txt`.
+
+Run the checks with:
+
+```bash
+.venv/bin/pytest -q
+.venv/bin/ruff check .
+```
+
+To build and run the same Docker image used by the HuggingFace Space:
+
+```bash
+docker build -t labelcheck .
+docker run --rm -p 8501:8501 labelcheck
+```
+
+Open `http://localhost:8501`. The Space metadata at the top of this file selects the Docker SDK and routes port 8501.
+
+## Approach
+
+The pipeline is:
+
+`upload → preprocess → OCR → extract → per-field rules → report`
+
+The actionable verdict model has three states: `PASS`, `REVIEW`, and `FAIL`. A binary verdict was wrong for this work because OCR uncertainty and legitimate near matches, such as capitalization or punctuation differences in a brand name, still need an agent's judgment. `NOT_EVALUATED` is reserved for checks that did not actually run; it is not presented as a passing verdict. The tool flags evidence but never issues a final rejection.
+
+Every field result carries a crop from the source artwork. The report puts that crop next to the application value, extracted value, and reason for the verdict. This is the trust mechanism: an agent can inspect the exact pixels behind a result instead of taking the OCR output on faith.
+
+## Tools used
+
+| Tool | Why it is used |
+|---|---|
+| Streamlit | Provides the single-label and batch user interface with little presentation-layer code. |
+| RapidOCR on ONNX Runtime | Runs OCR locally on CPU. Its model weights ship in the wheel, so startup never downloads a model. |
+| OpenCV | Decodes images, corrects orientation and perspective, improves contrast, and produces evidence crops. |
+| RapidFuzz | Scores fields where a near match should go to human review instead of failing automatically. |
+| pandas | Builds batch result tables and CSV exports. |
+
+Everything runs locally and the verification path makes no outbound network calls. That is a hard requirement of the project, not a deployment preference.
+
+## Assumptions and scope
+
+- The image fixtures are synthetic rather than real photographed labels. They prove that the pipeline is wired correctly, not that it has real-world OCR accuracy.
+- Batch mode uses a manifest CSV as the application-data channel. Its columns are `filename`, `brand_name`, `class_type`, `alcohol_content`, `net_contents`, `bottler`, and optional `origin_country`.
+- Integration with the COLA system is explicitly out of scope. Single-label values come from the form; batch values come from the manifest.
+- Uploaded images, extracted text, and crops stay in memory. Nothing is persisted to disk.
+
+## Measured performance
+
+The final warm benchmark covered 18 samples: three timed runs for each of six synthetic variants. End-to-end pipeline latency was **0.839 seconds p50** and **1.117 seconds p95**. A separate 20-run clean-fixture measurement was **0.803 seconds p50** and **0.961 seconds p95**.
+
+These figures were measured locally on macOS arm64 with CPython 3.11.15. Model startup and browser rendering were excluded, so they are pipeline measurements rather than a cold-start, UI, production-hardware, or real-photograph SLA.
+
+## Limitations
+
+- Government-warning boldness and minimum type size are `NOT_EVALUATED` rather than guessed.
+- The synthetic corpus does not establish accuracy on real labels, especially curved, low-resolution, or heavily stylized photographs.
+- There is no COLA integration.
+- Nothing is persisted, so there is no history, resumable batch, or audit trail.
+- Image correction degrades gracefully when it cannot recover a poor photograph; the report does not pretend the unreadable evidence passed.
+
+See [limitations and benchmark details](docs/limitations.md) for the measured accuracy results, accepted trade-offs, and remaining production work. The original take-home brief is preserved at [docs/brief.md](docs/brief.md).
