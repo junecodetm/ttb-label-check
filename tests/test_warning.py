@@ -99,3 +99,34 @@ def test_warning_rule_has_no_fuzzy_or_casefold_fallback() -> None:
 
     assert "rapidfuzz" not in source
     assert ".casefold(" not in source
+
+
+def test_lost_word_spaces_are_reviewed_not_failed() -> None:
+    """Real OCR reads stylised warning panels without spaces; that is not a violation."""
+
+    squashed = GOVERNMENT_WARNING.replace(" ", "")
+
+    result = warning.verify(squashed)
+
+    assert result.status is Status.REVIEW
+    assert "spaces between words" in result.detail
+
+
+def test_title_case_is_still_failed_even_without_spaces() -> None:
+    """Jenny Park's rejection must survive the space-tolerant comparison."""
+
+    squashed_title_case = GOVERNMENT_WARNING.replace(
+        "GOVERNMENT WARNING:", "Government Warning:"
+    ).replace(" ", "")
+
+    result = warning.verify(squashed_title_case)
+    prefix_result = warning.verify_prefix(squashed_title_case)
+
+    assert result.status is Status.FAIL
+    assert prefix_result.status is Status.FAIL
+
+
+def test_altered_wording_without_spaces_is_still_failed() -> None:
+    squashed_wrong = GOVERNMENT_WARNING.replace("birth defects", "birth issues").replace(" ", "")
+
+    assert warning.verify(squashed_wrong).status is Status.FAIL

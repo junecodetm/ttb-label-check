@@ -78,8 +78,16 @@ APOSTROPHE_CHARACTERS = frozenset(("'", "’", "ʼ"))
 
 NUMBER_PATTERN = r"(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?|\.[0-9]+"
 NUMBER_CANDIDATE_PATTERN = r"[+-]?(?:[0-9][0-9.,]*|\.[0-9][0-9.,]*)"
+# Real labels state alcohol content many ways: "45% Alc./Vol.", "ALC 40% BY VOL",
+# "Alcohol Content 40% by Vol", "5.5% ABV". Measured against TTB COLA registry
+# artwork, matching only the "alc/vol" form left the field unevaluated on labels
+# that plainly stated it. Separators are \s* rather than \s+ because OCR routinely
+# loses inter-word spaces on stylised label typography.
 ABV_MARKER_PATTERN = (
-    r"(?:\balc(?:ohol)?\.?\s*/\s*vol(?:ume)?\b\.?|\babv\b|\balcohol\s+by\s+volume\b)"
+    r"(?:\balc(?:ohol)?\b\.?\s*(?:content)?\s*(?:/|by)?\s*vol(?:ume)?\b\.?"
+    r"|\babv\b"
+    r"|\bby\s*vol(?:ume)?\b\.?"
+    r"|\balcohol\s*content\b)"
 )
 ABV_MARKER_SIGNAL_PATTERN = r"\b(?:alc|alcohol|abv)\b"
 ABV_PATTERN = (

@@ -123,17 +123,20 @@ _NET_CONTENT_CANDIDATE = re.compile(
     r"(?:fl\.?\s*oz\.?|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?)(?![A-Za-z])",
     re.IGNORECASE,
 )
+# Built from the same prefix table the comparison strips, so the two cannot drift.
+# Words are joined with \s* rather than a literal space because OCR reads real label
+# typography as "IMPORTED&BOTTLEDBYSAHALEE" often enough to matter.
 _BOTTLER_SIGNAL = re.compile(
     r"\b(?:"
     + "|".join(
-        re.escape(" ".join(tokens))
+        r"\s*".join(re.escape(token) for token in tokens)
         for tokens in sorted(
             BOTTLER_PREFIX_TOKEN_SEQUENCES,
             key=lambda tokens: len(" ".join(tokens)),
             reverse=True,
         )
     )
-    + r")\b",
+    + r")",
     re.IGNORECASE,
 )
 _ORIGIN_SIGNAL = re.compile(
@@ -142,7 +145,9 @@ _ORIGIN_SIGNAL = re.compile(
     r"|country\s+of\s+origin)\b",
     re.IGNORECASE,
 )
-_WARNING_ANCHOR = re.compile(r"\bgovernment\s+warning\s*:", re.IGNORECASE)
+# \s* not \s+: OCR reads stylised label text as "GOVERNMENTWARNING:" often enough
+# that requiring the space loses the anchor, and with it the whole warning check.
+_WARNING_ANCHOR = re.compile(r"\bgovernment\s*warning\s*:", re.IGNORECASE)
 _WARNING_CUES = (
     "surgeon general",
     "pregnancy",
