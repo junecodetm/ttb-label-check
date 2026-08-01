@@ -46,9 +46,12 @@ Open `http://localhost:8501`. The image pins Python 3.11 to match the venv and r
 
 ### Deployment note
 
-`packages.txt` installs `libgl1`, `libglib2.0-0` and `libgomp1` for the Streamlit Community Cloud deploy. It exists because `rapidocr-onnxruntime` depends on the GUI `opencv-python` distribution, which shares its `cv2` files with the headless wheel pinned in `requirements.txt` and wins on import — so `import cv2` asks for `libGL.so.1` regardless of the pin. The `Dockerfile` solves this at the source by force-reinstalling the headless wheel last; Streamlit Cloud has no equivalent hook, so the system library is installed instead.
+`packages.txt` installs `libgl1` for the Streamlit Community Cloud deploy. It exists because `rapidocr-onnxruntime` depends on the GUI `opencv-python` distribution, which shares its `cv2` files with the headless wheel pinned in `requirements.txt` and wins on import — so `import cv2` asks for `libGL.so.1` regardless of the pin. The `Dockerfile` solves this at the source by force-reinstalling the headless wheel last; Streamlit Cloud has no equivalent hook, so the system library is installed instead.
 
-Keep `packages.txt` a bare newline-separated list. Streamlit Cloud passes it directly to `apt`, which treats a `#` comment line as a package name and aborts the whole install with `E: Unsupported file / given on commandline`.
+Two constraints on that file, both learned by breaking the deploy:
+
+- **Keep it a bare newline-separated list.** Streamlit Cloud passes it directly to `apt`, which treats a `#` comment line as a package name and aborts the whole install with `E: Unsupported file / given on commandline`.
+- **Keep it minimal.** `apt` installs the file as one transaction, so a single unsatisfiable package prevents *all* of them from installing. Adding `libglib2.0-0` resolved to a stale Debian 11 build depending on `libffi7`, which took `libgl1` down with it.
 
 ## Approach
 

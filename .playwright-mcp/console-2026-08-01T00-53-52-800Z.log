@@ -103,3 +103,16 @@ Do not enter or paste code that you do not understand. @ https://www.gstatic.com
 [ 2216962ms] [LOG] INITIAL -> (13, 0, ) -> ERROR @ https://ttb-label-check.streamlit.app/-/build/assets/bufferedData-pRFuvJ57.js:4
 [ 2242535ms] [LOG] INITIAL -> (13, 0, ) -> ERROR @ https://ttb-label-check.streamlit.app/-/build/assets/bufferedData-pRFuvJ57.js:4
 [ 2273864ms] [LOG] INITIAL -> (13, 0, ) -> ERROR @ https://ttb-label-check.streamlit.app/-/build/assets/bufferedData-pRFuvJ57.js:4
+[ 2351703ms] [LOG] ERROR -> (5, 0, ) -> RUNNING @ https://ttb-label-check.streamlit.app/-/build/assets/bufferedData-pRFuvJ57.js:4
+[ 2351706ms] [WARNING] Unrecognized feature: 'ambient-light-sensor'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'battery'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'document-domain'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'layout-animations'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'legacy-image-formats'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'oversized-images'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'vr'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351706ms] [WARNING] Unrecognized feature: 'wake-lock'. @ https://ttb-label-check.streamlit.app/-/build/assets/routes-CqMErgWZ.js:0
+[ 2351874ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ https://ttb-label-check.streamlit.app/~/+/:0
+[ 2351963ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://ttb-label-check.streamlit.app/api/v2/user/details:0
+[ 2356300ms] [LOG] RUNNING -> (13, 0, ) -> ERROR @ https://ttb-label-check.streamlit.app/-/build/assets/bufferedData-pRFuvJ57.js:4
+[ 2659633ms] [LOG] INITIAL -> (13, 0, ) -> ERROR @ https://ttb-label-check.streamlit.app/-/build/assets/bufferedData-pRFuvJ57.js:4
