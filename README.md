@@ -16,6 +16,17 @@ container serves on 8501 — so the app can be redeployed to any container host 
 
 This is an offline tool that checks alcohol label artwork against the field values in a COLA application and shows a compliance agent what matches, what does not, and what still needs human judgment.
 
+**To try it in two clicks:** open the live app, press **Try a sample label**, then press
+**Check label**. That loads a bundled label and its application values so you do not have
+to find a bottle photograph first.
+
+For batch mode, upload every image in [`samples/`](samples) together with
+[`samples/application-values.csv`](samples/application-values.csv). The four samples are
+the brief's own acceptance cases: a compliant label, the title-case `Government Warning:`
+Jenny Park rejected, a photograph shot at an angle with glare, and Dave Morrison's
+`OLD TOM DISTILLERY` versus `Old Tom Distillery`. They are regenerated with
+`.venv/bin/python tools/make_samples.py`.
+
 ## Setup and run
 
 The project targets Python 3.11. Create the environment and install the application plus development tools with:
@@ -84,14 +95,35 @@ Everything runs locally and the verification path makes no outbound network call
 
 ## Measured performance
 
-The final warm benchmark covered 18 samples: three timed runs for each of six synthetic variants. End-to-end pipeline latency was **0.839 seconds p50** and **1.117 seconds p95**. A separate 20-run clean-fixture measurement was **0.803 seconds p50** and **0.961 seconds p95**.
+| | Result | How |
+|---|---|---|
+| One label, deployed | **0.9s**, as the agent sees it | timed in the browser against the live app |
+| One label, local | **p50 1.084s / p95 1.511s** | `tools/bench_ocr.py`, 18 samples over 6 variants |
+| 300 labels | **5 min 46s**, peak RSS 1110MB, 0 errors | `tools/bench_batch.py --count 300` |
 
-These figures were measured locally on macOS arm64 with CPython 3.11.15. Model startup and browser rendering were excluded, so they are pipeline measurements rather than a cold-start, UI, production-hardware, or real-photograph SLA.
+Against Sarah Chen's five-second requirement, a single label costs roughly one to one
+and a half seconds warm. OCR is about 95% of that; model load happens once at startup.
+
+An earlier version of this README quoted 0.839s p50. That figure did not reproduce when
+re-measured and has been replaced rather than kept — it was taken on a less loaded
+machine. Full conditions, the stage split, the batch numbers, and the measurement that
+argued *against* building an OCR engine pool are in
+[docs/measurements.md](docs/measurements.md).
+
+Accuracy is reported in two parts, because only one of them means much:
+
+- **Synthetic fixtures**: clean, ornate, rotated and glare variants read 18/18 fields;
+  low resolution reads 9/18. This shows the pipeline degrades instead of crashing.
+- **Real TTB artwork** from the Public COLA Registry: this is what exposed that OCR
+  reads stylised labels *without inter-word spaces*, which had been silently costing
+  the government warning, the bottler and the alcohol content on real labels. Fixed and
+  re-measured; see [docs/measurements.md](docs/measurements.md).
 
 ## Limitations
 
 - Government-warning boldness and minimum type size are `NOT_EVALUATED` rather than guessed.
-- The synthetic corpus does not establish accuracy on real labels, especially curved, low-resolution, or heavily stylized photographs.
+- Accuracy on real photographs is established for a handful of TTB COLA labels, not a corpus. Curved bottle shots and heavily stylised typography remain the weak spot.
+- COLA registry images are composite artwork sheets; side-by-side panels defeat horizontal line grouping. One label per image is the contract.
 - There is no COLA integration.
 - Nothing is persisted, so there is no history, resumable batch, or audit trail.
 - Image correction degrades gracefully when it cannot recover a poor photograph; the report does not pretend the unreadable evidence passed.

@@ -110,11 +110,17 @@ def make_label(
     glare: bool = False,
     low_resolution: bool = False,
     seed: int = FIXTURE_SEED,
+    record: ApplicationRecord | None = None,
+    warning_text: str | None = None,
 ) -> bytes:
-    """Render deterministic label variants without committing binary fixtures."""
+    """Render deterministic label variants without committing binary fixtures.
+
+    `record` and `warning_text` exist so a caller can render a deliberately
+    non-compliant label, such as the title-case warning Jenny Park rejected.
+    """
 
     rng = random.Random(seed)
-    record = sample_application_record()
+    record = record or sample_application_record()
     image = Image.new("RGB", LABEL_SIZE, BACKGROUND_COLOR)
     draw = ImageDraw.Draw(image)
 
@@ -130,7 +136,9 @@ def make_label(
     _draw_centered(draw, 415, record.bottler, _font(28))
 
     warning_font = _font(27)
-    warning_lines = _wrapped_lines(draw, GOVERNMENT_WARNING, warning_font, max_width=1250)
+    warning_lines = _wrapped_lines(
+        draw, warning_text or GOVERNMENT_WARNING, warning_font, max_width=1250
+    )
     _draw_warning(draw, warning_lines, warning_font)
 
     if glare:

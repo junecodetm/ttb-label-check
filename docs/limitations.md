@@ -77,6 +77,48 @@ fast-path change. Its final per-stage measurements were:
 The 5-second requirement is met with substantial headroom. These are local macOS arm64 /
 CPython 3.11.15 synthetic-fixture results, not a production-hardware or real-photograph SLA.
 
+**Superseded 2026-08-01.** The p50 0.839s above did not reproduce on re-measurement; the same
+tool on the same machine under ordinary load reports p50 **1.084s** / p95 **1.511s**, and the
+deployed app answers a single label in about **0.9s** wall clock. The requirement still holds
+with room to spare, but the figures in [measurements.md](measurements.md) are the current ones
+and state their conditions. The lesson kept here deliberately: a latency number without the
+machine state beside it is not a measurement.
+
+---
+
+### **OPEN** — real labels lose their inter-word spaces
+
+Found 2026-08-01 by running genuine artwork from the TTB Public COLA Registry through
+`verify()`. OCR reads stylised label typography as `GOVERNMENTWARNING:`,
+`IMPORTED&BOTTLEDBYSAHALEE` and `Alcohol Content40% by Vol`. Every extraction signal assumed
+spaces, so on a real label that plainly stated all three, the government warning, the bottler
+and the alcohol content were all reported unevaluated.
+
+Mitigated, not solved:
+
+- Alcohol markers now cover `ALC 40% BY VOL`, `Alcohol Content 40% by Vol` and `40% ABV`.
+- The warning anchor and bottling-phrase signals join words with `\s*`.
+- The warning comparison has a space-insensitive second pass. It remains exact and
+  case-preserving — title case still FAILs — but a match found only that way reports REVIEW,
+  never PASS, because the tool cannot distinguish a label that genuinely omits the spaces from
+  a reader that dropped them.
+
+Still failing, by design: a full-width OCR substitution such as `）` for `)` fails the warning
+comparison, because the warning text is deliberately not Unicode-folded. Folding it would risk
+masking a real substitution in the one check that must not be fuzzy. The agent sees the
+word-level diff and the crop instead.
+
+### **OPEN** — COLA registry images are composite artwork sheets
+
+A COLA image is not one label. It is the front, the back and often a serving-facts panel laid
+side by side on one sheet. Horizontal line grouping therefore merges text across panels, and
+the warning check can pick up the bottler's line from the neighbouring panel. Splitting the
+same image into single panels reads correctly.
+
+The tool's contract is one label per image. Handling composite sheets would need column
+segmentation before line grouping — worth doing before any COLA-fed deployment, out of scope
+for a prototype.
+
 ---
 
 ## Deliberate scope boundaries

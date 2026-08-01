@@ -100,6 +100,12 @@ _NEUTRAL_OVERALL_STATUS = """
 </div>
 """
 
+_SAMPLES_DIRECTORY = Path(__file__).resolve().parent / "samples"
+_SAMPLE_LABEL_FILENAME = "compliant-bourbon.png"
+_SAMPLE_IMAGE_KEY = "labelcheck_sample_image"
+_SAMPLE_NAME_KEY = "labelcheck_sample_name"
+_SAMPLE_VALUES_KEY = "labelcheck_sample_values"
+
 _BATCH_VIEW_KEY = "labelcheck_batch_view"
 _BATCH_RESULTS_KEY = "labelcheck_batch_results"
 _BATCH_FRAME_KEY = "labelcheck_batch_frame"
@@ -281,6 +287,50 @@ def _render_batch_page() -> None:
     _render_saved_batch_results()
 
 
+def _load_sample_label() -> bool:
+    """Fill the whole form from a bundled label so the tool can be tried in one click.
+
+    An evaluator opening the deployed app otherwise has to find a bottle photograph
+    and invent six matching application values before anything happens.
+    """
+
+    image_path = _SAMPLES_DIRECTORY / _SAMPLE_LABEL_FILENAME
+    manifest_path = _SAMPLES_DIRECTORY / "application-values.csv"
+    try:
+        image_bytes = image_path.read_bytes()
+        with manifest_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+    except OSError:
+        return False
+
+    row = next((row for row in rows if row.get("filename") == _SAMPLE_LABEL_FILENAME), None)
+    if row is None or not image_bytes:
+        return False
+
+    st.session_state[_SAMPLE_VALUES_KEY] = {
+        field_name: (row.get(field_name) or "")
+        for field_name in (
+            "brand_name",
+            "class_type",
+            "alcohol_content",
+            "net_contents",
+            "bottler",
+            "origin_country",
+        )
+    }
+    st.session_state[_SAMPLE_IMAGE_KEY] = image_bytes
+    st.session_state[_SAMPLE_NAME_KEY] = _SAMPLE_LABEL_FILENAME
+    return True
+
+
+def _prefill(field_name: str) -> str:
+    values = st.session_state.get(_SAMPLE_VALUES_KEY)
+    if not isinstance(values, dict):
+        return ""
+    value = values.get(field_name, "")
+    return value if isinstance(value, str) else ""
+
+
 def _progress_text(completed: int, total: int, elapsed_seconds: float) -> str:
     """Tell the agent how long the queue still needs, in words, not a spinner.
 
@@ -442,6 +492,8 @@ def main() -> None:
         _render_batch_page()
         return
 
+    sample_name = st.session_state.get(_SAMPLE_NAME_KEY)
+
     with st.form("single_label_check"):
         st.subheader("1. Upload the label")
         uploaded_file = st.file_uploader(
@@ -449,15 +501,29 @@ def main() -> None:
             type=["png", "jpg", "jpeg"],
             help="For the clearest result, use a straight-on photo in good light.",
         )
+        if sample_name:
+            st.caption(f"Using the sample label {sample_name}. Upload a file to use that instead.")
 
         st.subheader("2. Enter the application values")
-        brand_name = st.text_input("Brand name (required)")
-        class_type = st.text_input("Class or type (required)")
-        alcohol_content = st.text_input("Alcohol content (required)")
-        net_contents = st.text_input("Net contents (required)")
-        bottler = st.text_input("Bottler or producer (required)")
-        origin_country = st.text_input("Country of origin (optional)")
+        brand_name = st.text_input("Brand name (required)", value=_prefill("brand_name"))
+        class_type = st.text_input("Class or type (required)", value=_prefill("class_type"))
+        alcohol_content = st.text_input(
+            "Alcohol content (required)", value=_prefill("alcohol_content")
+        )
+        net_contents = st.text_input("Net contents (required)", value=_prefill("net_contents"))
+        bottler = st.text_input("Bottler or producer (required)", value=_prefill("bottler"))
+        origin_country = st.text_input(
+            "Country of origin (optional)", value=_prefill("origin_country")
+        )
         submitted = st.form_submit_button("Check label", type="primary", width="stretch")
+        # Kept inside the form so the demo sits where the agent is already looking,
+        # and so the page still offers one primary action rather than two rival ones.
+        wants_sample = st.form_submit_button("Try a sample label", width="stretch")
+
+    if wants_sample:
+        if _load_sample_label():
+            st.rerun()
+        st.error("The sample label is unavailable. Upload your own image instead.")
 
     if submitted:
         _handle_single_submission(
@@ -490,7 +556,8 @@ def _handle_single_submission(
 ) -> None:
     """Keep the results directly beneath the button the agent just pressed."""
 
-    if uploaded_file is None:
+    sample_bytes = st.session_state.get(_SAMPLE_IMAGE_KEY)
+    if uploaded_file is None and not sample_bytes:
         st.error("Upload a PNG or JPEG label image, then choose Check label again.")
         return
     if not all((brand_name, class_type, alcohol_content, net_contents, bottler)):
@@ -501,7 +568,7 @@ def _handle_single_submission(
         return
 
     try:
-        image_bytes = uploaded_file.getvalue()
+        image_bytes = uploaded_file.getvalue() if uploaded_file is not None else sample_bytes
     except Exception:
         st.error("We could not open this image. Choose another PNG or JPEG and try again.")
         return

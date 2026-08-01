@@ -540,3 +540,45 @@ def test_a_batch_that_is_not_cancelled_reports_no_cancelled_rows() -> None:
     )
 
     assert all(result.error is None for result in results)
+
+
+def test_sample_label_button_fills_the_form_and_checks_without_an_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An evaluator with no bottle photograph must still be able to see a result."""
+
+    monkeypatch.setattr(labelcheck.ocr, "warm", lambda: object())
+    monkeypatch.setattr(
+        labelcheck.pipeline,
+        "verify",
+        lambda _image, _application: _label_report(Status.PASS),
+    )
+    app_path = Path(__file__).parents[1] / "app.py"
+    app = AppTest.from_file(str(app_path), default_timeout=30).run()
+
+    next(button for button in app.button if button.label == "Try a sample label").click().run()
+
+    assert not app.exception
+    assert [text_input.value for text_input in app.text_input][:2] == [
+        "OLD TOM DISTILLERY",
+        "Kentucky Straight Bourbon Whiskey",
+    ]
+
+    next(button for button in app.button if button.label == "Check label").click().run()
+
+    assert not app.exception
+    assert any("Review the results" in heading.value for heading in app.subheader)
+
+
+def test_shipped_sample_manifest_parses_and_names_files_that_exist() -> None:
+    """The committed demo assets must stay consistent with the manifest contract."""
+
+    batch = _batch_module()
+    samples_directory = Path(__file__).parents[1] / "samples"
+    manifest_bytes = (samples_directory / "application-values.csv").read_bytes()
+
+    rows = batch.parse_manifest(manifest_bytes)
+
+    assert rows
+    for row in rows:
+        assert (samples_directory / row.filename).is_file()

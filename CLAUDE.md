@@ -120,8 +120,8 @@ Procedures are skills, invoked by name:
 | Skill | Use for |
 |---|---|
 | `/build` | **The goal command.** Executes the whole project in phases, each with a mechanical gate. Resume with `/build <phase>`. |
-| `/verify-cfr-text` | Diff the statutory warning in `config.py` against the live 27 CFR 16.21. **Unresolved — run before shipping.** |
-| `/bench-ocr` | Measure RapidOCR vs EasyOCR against the 5s budget. **Unresolved — the engine choice and every latency figure are currently unmeasured.** |
+| `/verify-cfr-text` | Diff the statutory warning in `config.py` against the live 27 CFR 16.21. **Closed 2026-07-31** — verified against GPO and the eCFR versioner API, and pinned by `tests/test_warning_provenance.py`. Re-run if the constant is ever edited. |
+| `/bench-ocr` | Measure RapidOCR against the 5s budget. **Closed** — current figures live in `docs/measurements.md`; re-run after any change to the OCR or preprocess path. |
 | `/add-field-rule` | Scaffold a new per-field rule with its normalization helpers and tests. |
 
 Reference documents, read on demand: `docs/adr/0001-ocr-engine.md` (why RapidOCR, and the fallback trigger) and `docs/limitations.md` (the trade-offs the brief asks to be documented — keep it current as decisions land).
