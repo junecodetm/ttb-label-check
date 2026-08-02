@@ -13,11 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # setup-uv with a python-version input already creates and activates .venv;
+      # an explicit `uv venv` afterwards fails on the existing environment.
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
           enable-cache: true
-      - run: uv venv --python 3.11
       - run: uv pip install -r requirements-dev.txt
       - run: .venv/bin/ruff check .
       - run: .venv/bin/ruff format --check .
