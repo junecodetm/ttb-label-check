@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Built.** `app.py`, `src/labelcheck/` and `tests/` all exist and pass; the module layout below now describes the codebase rather than specifying it, and the commands work as written.
 
 - `docs/brief.md` is the **source of truth**: the original TTB take-home brief. `README.md` is the deliverable README with setup, approach, measurements, and limitations for evaluators.
-- `RESOURCES.md` is an **advisory** stack recommendation, not binding. It is superseded on the OCR engine only — see `docs/adr/0001-ocr-engine.md`.
+- `RESOURCES.md` (the advisory stack recommendation that shipped with the brief) has been removed from the repo; its OCR-engine advice was superseded by `docs/adr/0001-ocr-engine.md`, which records the relevant parts.
 
 <!-- Once src/ exists, the module tree below becomes derivable from the codebase and should be
      trimmed out of this file. It earns its place only while it is still the spec. -->

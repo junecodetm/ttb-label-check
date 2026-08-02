@@ -2,7 +2,7 @@
 
 **Status:** Accepted — verified on the six-variant synthetic benchmark corpus.
 **Date:** 2026-07-31
-**Supersedes:** the EasyOCR recommendation in `RESOURCES.md`
+**Supersedes:** the EasyOCR recommendation in `RESOURCES.md` (the advisory stack notes that shipped with the brief; since removed from the repo — quotes below preserve what it said)
 
 ## Context
 
