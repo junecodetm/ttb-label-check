@@ -13,6 +13,7 @@ REPORT_FIELD_LABELS = {
     "class_type": "Class or type",
     "alcohol_content": "Alcohol content",
     "net_contents": "Net contents",
+    "net_contents_standard_of_fill": "Container size — approved sizes",
     "bottler": "Bottler or producer",
     "origin_country": "Country of origin",
     "government_warning": "Government warning wording",

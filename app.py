@@ -29,6 +29,7 @@ _FIELD_LABELS = {
     "class_type": "Class or type",
     "alcohol_content": "Alcohol content",
     "net_contents": "Net contents",
+    "net_contents_standard_of_fill": "Approved container size",
     "bottler": "Bottler or producer",
     "origin_country": "Country of origin",
     "government_warning": "Government warning wording",
@@ -56,17 +57,6 @@ _OVERALL_STATUS_COPY = {
     Status.REVIEW: ("Overall: Close — worth checking. At least one check needs your judgment."),
     Status.FAIL: "Overall: At least one value does not match the application.",
     Status.NOT_EVALUATED: "Overall: Some or all checks were not completed.",
-}
-
-_UNEVALUATED_EXPLANATIONS = {
-    "government_warning_bold": (
-        "This was not checked because the reader cannot confirm bold text from the "
-        "available evidence."
-    ),
-    "government_warning_type_size": (
-        "This was not checked because the image does not provide the physical "
-        "measurements needed to confirm type size."
-    ),
 }
 
 _STATIC_STYLES = """
@@ -152,12 +142,8 @@ def _display_read_value(value: str | None) -> str:
     return value or "Nothing readable was found"
 
 
-def _user_detail(field_name: str, result: FieldResult) -> str | None:
-    if result.status is Status.NOT_EVALUATED:
-        return _UNEVALUATED_EXPLANATIONS.get(field_name, result.detail)
-    if result.status in {Status.REVIEW, Status.FAIL}:
-        return result.detail
-    return None
+def _user_detail(result: FieldResult) -> str | None:
+    return result.detail or None
 
 
 def _render_status(status: Status, *, overall: bool = False) -> None:
@@ -205,7 +191,7 @@ def _render_field(field_name: str, result: FieldResult) -> None:
             st.markdown("**We read this as**")
             st.write(_display_read_value(result.extracted))
             _render_status(result.status)
-            detail = _user_detail(field_name, result)
+            detail = _user_detail(result)
             if detail:
                 st.write(detail)
 
@@ -221,7 +207,7 @@ def _report_to_csv(report: LabelReport) -> bytes:
                 _STATUS_LABELS[result.status],
                 _display_application_value(result.expected),
                 _display_read_value(result.extracted),
-                _user_detail(field_name, result) or _FIELD_STATUS_COPY[result.status],
+                _user_detail(result) or _FIELD_STATUS_COPY[result.status],
             ]
         )
     for field_name in _FIELD_LABELS:

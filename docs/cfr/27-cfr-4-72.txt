@@ -1,0 +1,53 @@
+# Standards of fill for wine — 27 CFR 4.72 "Metric standards of fill."
+#
+# PROVENANCE ANCHOR for src/labelcheck/config.py::WINE_STANDARDS_OF_FILL_ML and the
+# large-format even-liter rule (WINE_LARGE_FORMAT_MIN_ML / WINE_LARGE_FORMAT_STEP_ML).
+# tests/test_standard_of_fill.py pins the config constants against the text below.
+#
+# Retrieved: 2026-08-01
+# Source: eCFR versioner API, title-27 issue date 2026-07-30 —
+#   https://www.ecfr.gov/api/versioner/v1/full/2026-07-30/title-27.xml?part=4&section=4.72
+# (The eCFR HTML UI 302-redirects to a bot-interstitial and cannot be fetched
+# programmatically; the versioner API is the same body of text from the same publisher.)
+#
+# Most recent amendment in the section source note: T.D. TTB-200, 90 FR 1875, Jan. 20,
+# 2025 — the "Standards of Fill for Wine and Distilled Spirits" final rule that expanded
+# this list (adding, among others, 700 mL and 720 mL).
+#
+# NOTE: the CFR as published dates T.D. TTB-200 "Jan. 20, 2025" here but "Jan. 10, 2025"
+# in § 5.203. Both source notes are reproduced verbatim from the API; the discrepancy is
+# in the published CFR itself, not an editing artifact of these anchors.
+#
+# FORMAT: every line beginning with '#' is a comment. The remaining lines are the section
+# text, plain-text-extracted from the API XML, complete.
+
+§ 4.72 Metric standards of fill.
+(a) Authorized standards of fill. The standards of fill for wine are the following:
+(1) 3 liters.
+(2) 2.25 liters.
+(3) 1.8 liters.
+(4) 1.5 liters.
+(5) 1 liter.
+(6) 750 milliliters.
+(7) 720 milliliters.
+(8) 700 milliliters.
+(9) 620 milliliters.
+(10) 600 milliliters.
+(11) 568 milliliters.
+(12) 550 milliliters.
+(13) 500 milliliters.
+(14) 473 milliliters.
+(15) 375 milliliters.
+(16) 360 milliliters.
+(17) 355 milliliters.
+(18) 330 milliliters.
+(19) 300 milliliters.
+(20) 250 milliliters.
+(21) 200 milliliters.
+(22) 187 milliliters.
+(23) 180 milliliters.
+(24) 100 milliliters.
+(25) 50 milliliters.
+(b) Sizes larger than 3 liters. Wine may be bottled or packed in containers of 4 liters or larger if the containers are filled and labeled in quantities of even liters (4 liters, 5 liters, 6 liters, etc.).
+(c) Tolerances. The tolerances in fill are the same as are allowed by § 4.37 in respect to statement of net contents on labels.
+[T.D. ATF-12, 39 FR 45223, Dec. 31, 1974, as amended by T.D. ATF-49, 43 FR 19848, May 9, 1978; T.D. ATF-76, 46 FR 1727, Jan. 7, 1981; T.D. ATF-303, 55 FR 42713, Oct. 23, 1990. Redesignated by T.D. ATF-953, 68 FR 39455, July 2, 2003; T.D. TTB-165, 85 FR 85520, Dec. 29, 2020; T.D. TTB-200, 90 FR 1875, Jan. 20, 2025]

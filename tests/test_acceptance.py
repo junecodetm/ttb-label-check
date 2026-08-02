@@ -13,6 +13,7 @@ VERIFICATION_FIELDS = (
     "class_type",
     "alcohol_content",
     "net_contents",
+    "net_contents_standard_of_fill",
     "bottler",
     "origin_country",
     "government_warning",

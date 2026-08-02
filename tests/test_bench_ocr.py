@@ -31,6 +31,7 @@ def test_accuracy_counts_six_semantic_label_fields() -> None:
             "class_type": _result(Status.PASS),
             "alcohol_content": _result(Status.FAIL),
             "net_contents": _result(Status.PASS),
+            "net_contents_standard_of_fill": _result(Status.PASS),
             "bottler": _result(Status.PASS),
             "government_warning": _result(Status.PASS),
             "origin_country": _result(Status.NOT_EVALUATED),

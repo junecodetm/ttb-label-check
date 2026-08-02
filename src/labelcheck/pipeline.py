@@ -85,12 +85,26 @@ def verify(image_bytes: bytes, expected: ApplicationRecord) -> LabelReport:
             crop=alcohol_candidate.crop,
         )
 
+    net_contents_candidate = candidates["net_contents"]
     results["net_contents"] = _evaluate_binary_rule(
-        candidates["net_contents"],
+        net_contents_candidate,
         expected.net_contents,
         "net-contents",
         net_contents.verify,
     )
+    if net_contents_candidate.state is ExtractionState.AMBIGUOUS:
+        results["net_contents_standard_of_fill"] = _ambiguous_result(
+            net_contents_candidate,
+            expected.net_contents,
+            "net-contents",
+        )
+    else:
+        results["net_contents_standard_of_fill"] = net_contents.verify_standard_of_fill(
+            net_contents_candidate.value,
+            expected.net_contents,
+            beverage_class=expected.class_type,
+            crop=net_contents_candidate.crop,
+        )
     results["bottler"] = _evaluate_binary_rule(
         candidates["bottler"], expected.bottler, "bottler", bottler.verify
     )

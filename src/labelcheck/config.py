@@ -161,6 +161,13 @@ WINE_ABV_TOLERANCE_AT_OR_BELOW_BAND = Decimal("1.5")  # 27 CFR 4.36(b)
 WINE_ABV_TOLERANCE_ABOVE_BAND = Decimal("1.0")  # 27 CFR 4.36(b)
 NO_ABV_TOLERANCE = Decimal("0")
 
+# 27 CFR 4.10 defines "wine" for FAA Act labeling purposes as containing "not less than
+# 7 percent and not more than 24 percent of alcohol by volume" (verified against the eCFR
+# versioner API, title-27 issue 2026-07-30). Below 7% the TTB labeling rules in Part 4 do
+# not apply and FDA food-labeling rules govern instead, so the alcohol rule attaches an
+# advisory note — a TTB reviewer would not process such a label under a wine COLA.
+WINE_FDA_JURISDICTION_MIN_ABV = Decimal("7")
+
 
 def abv_tolerance_for(canonical_class: str, labeled_abv: Decimal) -> Decimal:
     """Permitted ABV deviation in percentage points, per the CFR citations above.
@@ -363,6 +370,92 @@ NET_CONTENT_UNIT_TO_ML = {
     "fl oz": FLUID_OUNCE_TO_ML,
 }
 
+# Standards of fill (authorized container sizes). Values verified against the eCFR
+# versioner API on 2026-08-01 (title-27 issue date 2026-07-30); plain-text provenance
+# extracts live in docs/cfr/27-cfr-5-203.txt and docs/cfr/27-cfr-4-72.txt, and
+# tests/test_standard_of_fill.py pins these sets against those anchors.
+#
+# Distilled spirits — 27 CFR 5.203(a), as amended by T.D. TTB-200 ("Standards of Fill
+# for Wine and Distilled Spirits", 90 FR 1876, Jan. 10, 2025), which expanded the list
+# (700/720/900/945 mL among the additions). 25 authorized metric sizes.
+SPIRITS_STANDARDS_OF_FILL_ML = frozenset(
+    Decimal(value)
+    for value in (
+        "3750",
+        "3000",
+        "2000",
+        "1800",
+        "1750",
+        "1500",
+        "1000",
+        "945",
+        "900",
+        "750",
+        "720",
+        "710",
+        "700",
+        "570",
+        "500",
+        "475",
+        "375",
+        "355",
+        "350",
+        "331",
+        "250",
+        "200",
+        "187",
+        "100",
+        "50",
+    )
+)
+# Wine — 27 CFR 4.72(a), as amended by T.D. TTB-200 (90 FR 1875, Jan. 20, 2025).
+WINE_STANDARDS_OF_FILL_ML = frozenset(
+    Decimal(value)
+    for value in (
+        "3000",
+        "2250",
+        "1800",
+        "1500",
+        "1000",
+        "750",
+        "720",
+        "700",
+        "620",
+        "600",
+        "568",
+        "550",
+        "500",
+        "473",
+        "375",
+        "360",
+        "355",
+        "330",
+        "300",
+        "250",
+        "200",
+        "187",
+        "180",
+        "100",
+        "50",
+    )
+)
+# 27 CFR 4.72(b): wine containers of 4 liters or larger are authorized when filled and
+# labeled in even (whole) liters — 4 L, 5 L, 6 L, and so on.
+WINE_LARGE_FORMAT_MIN_ML = Decimal("4000")
+WINE_LARGE_FORMAT_STEP_ML = MILLILITERS_PER_LITER
+# Malt beverages are deliberately absent from this map: 27 CFR Part 7 prescribes no
+# standards of fill, so no membership check exists to run and the rule reports
+# NOT_EVALUATED for beer rather than an unearned PASS.
+STANDARDS_OF_FILL_ML = {
+    "distilled_spirits": SPIRITS_STANDARDS_OF_FILL_ML,
+    "wine": WINE_STANDARDS_OF_FILL_ML,
+}
+# Half of the one-decimal fl-oz print step (0.05 fl oz ~= 1.479 mL): a label stating
+# "25.4 fl oz" resolves to the 750 mL standard (raw conversion 751.17 mL). Applies ONLY
+# to fl-oz-stated values; metric-stated values compare exactly, so 701 mL is never
+# silently absorbed into 700 mL.
+STANDARD_OF_FILL_FL_OZ_TOLERANCE_ML = FLUID_OUNCE_TO_ML * Decimal("0.05")
+
 WARNING_HYPHENATION_PATTERN = r"(?<=[A-Za-z])-[ \t]*\r?\n[ \t]*(?=[A-Za-z])"
 WARNING_LOWERCASE_L_PATTERN = r"(?<=[a-z])(?:1|I)(?=[a-z])"
 WARNING_UPPERCASE_I_PATTERN = r"(?<=[A-Z])(?:1|l)(?=[A-Z])"
@@ -385,6 +478,18 @@ GOVERNMENT_WARNING = (
 )
 WARNING_BOLD_EXPECTATION = "Bold GOVERNMENT WARNING: prefix"
 WARNING_TYPE_SIZE_EXPECTATION = "Compliant minimum government-warning type size"
+# 27 CFR 16.22(b) minimum warning type size by container volume, paired with the
+# 16.22(a)(4) maximum characters per inch for each tier (verified against the eCFR
+# versioner API, title-27 issue 2026-07-30). Reference metadata only: a flat photograph
+# carries no physical scale, so the type-size check stays NOT_EVALUATED and cites this
+# table in its detail text instead of guessing (.claude/rules/government-warning.md).
+# Rows: (container volume ceiling in mL, or None for unbounded; min type size in mm;
+# max characters per inch).
+WARNING_TYPE_SIZE_TABLE = (
+    (Decimal("237"), 1, 40),
+    (Decimal("3000"), 2, 25),
+    (None, 3, 12),
+)
 
 # Image-quality gates are tuned for RapidOCR's default detector, whose shortest-side target is
 # 736 px. They keep clean studio images on the decode-only path while bounding corrective work.
