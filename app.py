@@ -541,7 +541,7 @@ def main() -> None:
             type=_UPLOAD_TYPES,
             help="For the clearest result, use a straight-on photo in good light.",
         )
-        if sample_name:
+        if sample_name and uploaded_file is None:
             st.caption(f"Using the sample label {sample_name}. Upload a file to use that instead.")
 
         st.subheader("2. Enter the application values")
