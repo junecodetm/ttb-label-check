@@ -1,6 +1,7 @@
-# Stack inventory (final-pass Phase 0)
+# Stack inventory
 
-Scratch inventory for the final audit pass. Verified against the working tree on 2026-08-01.
+A one-page technical inventory of the prototype, plus the exact request→response traces
+for the single-label and batch paths. Verified against the working tree on 2026-08-01.
 
 | Aspect | Finding |
 |---|---|

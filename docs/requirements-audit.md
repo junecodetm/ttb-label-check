@@ -2,7 +2,7 @@
 
 The brief buries its real constraints inside interview prose, so this is a line-by-line
 trace from what a stakeholder actually said to the code that satisfies it and the test
-that holds it there. Line numbers refer to `THT-INSTRUCTIONS.md`.
+that holds it there. Line numbers refer to `docs/brief.md`.
 
 Status key: **Met** — implemented and tested. **Partial** — implemented with a stated
 limit. **Scoped out** — the brief excludes it.
