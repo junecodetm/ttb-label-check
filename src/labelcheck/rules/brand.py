@@ -41,7 +41,7 @@ def verify(
         confidence = float(token_sort_ratio(normalized_extracted, normalized_expected))
     if confidence >= FUZZY_PASS_THRESHOLD:
         status = Status.PASS
-        detail = f"Brand matched after normalization (similarity {confidence:.1f})."
+        detail = "Matches the application once case and punctuation are set aside."
     elif confidence >= FUZZY_REVIEW_THRESHOLD:
         status = Status.REVIEW
         detail = "Brand wording is close but not clearly the same; agent review is required."

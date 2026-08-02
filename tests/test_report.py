@@ -17,6 +17,7 @@ REPORT_FIELDS = (
     "class_type",
     "alcohol_content",
     "net_contents",
+    "net_contents_standard_of_fill",
     "bottler",
     "origin_country",
     "government_warning",
@@ -29,6 +30,7 @@ REPORT_FIELD_LABELS = {
     "class_type": "Class or type",
     "alcohol_content": "Alcohol content",
     "net_contents": "Net contents",
+    "net_contents_standard_of_fill": "Container size — approved sizes",
     "bottler": "Bottler or producer",
     "origin_country": "Country of origin",
     "government_warning": "Government warning wording",
@@ -139,7 +141,7 @@ def test_results_dataframe_has_a_stable_complete_shape_and_failure_first_order()
 
     missing_row = frame.loc[frame["Filename"] == "missing.png"].iloc[0]
     assert missing_row["Checks that could not be run"] == (
-        "10 checks could not be run — "
+        "11 checks could not be run — "
         + "; ".join(REPORT_FIELD_LABELS[field_name] for field_name in REPORT_FIELDS)
     )
     assert missing_row["Brand name — application value"] == "Application Brand"
@@ -193,7 +195,7 @@ def test_unevaluated_status_uses_plain_language() -> None:
 
     assert frame.loc[0, "Overall result"] == "NOT CHECKED"
     assert frame.loc[0, "Checks that could not be run"] == (
-        "10 checks could not be run — "
+        "11 checks could not be run — "
         + "; ".join(REPORT_FIELD_LABELS[field_name] for field_name in REPORT_FIELDS)
     )
     assert frame.loc[0, "Country of origin — result"] == "NOT CHECKED"
@@ -225,7 +227,7 @@ def test_partial_report_never_appears_as_a_complete_pass() -> None:
     assert result.status is Status.NOT_EVALUATED
     assert frame.loc[0, "Overall result"] == "NOT CHECKED"
     assert frame.loc[0, "Checks that could not be run"] == (
-        "9 checks could not be run — "
+        "10 checks could not be run — "
         + "; ".join(
             REPORT_FIELD_LABELS[field_name]
             for field_name in REPORT_FIELDS
@@ -256,7 +258,7 @@ def test_unknown_unevaluated_check_is_disclosed_without_breaking_export() -> Non
         [batch.BatchResult(filename="unknown.png", report=label_report)]
     )
 
-    assert frame.loc[0, "Checks that could not be run"].startswith("11 checks could not be run — ")
+    assert frame.loc[0, "Checks that could not be run"].startswith("12 checks could not be run — ")
     assert "Unknown check" in frame.loc[0, "Checks that could not be run"]
 
 
@@ -306,9 +308,19 @@ def test_single_label_csv_lists_missing_checks_as_not_checked() -> None:
             Status.FAIL,
             "Net contents differ by 250 mL after unit conversion.",
         ),
+        (
+            "alcohol_content",
+            Status.PASS,
+            "Below 7% ABV, FDA labeling governs under 27 CFR 4.10.",
+        ),
+        (
+            "government_warning_type_size",
+            Status.NOT_EVALUATED,
+            "27 CFR 16.22 reference tiers: 1, 2, and 3 millimeters.",
+        ),
     ],
 )
-def test_single_label_non_pass_reason_reaches_the_user(
+def test_single_label_rule_detail_reaches_the_user(
     field_name: str,
     status: Status,
     detail: str,
@@ -320,4 +332,5 @@ def test_single_label_non_pass_reason_reaches_the_user(
     spec.loader.exec_module(label_app)
     result = FieldResult(status, "expected", "extracted", None, b"crop", detail)
 
-    assert label_app._user_detail(field_name, result) == detail
+    assert field_name in label_app._FIELD_LABELS
+    assert label_app._user_detail(result) == detail

@@ -5,6 +5,7 @@ from labelcheck.config import (
     MISMATCH_CONFIDENCE,
     WARNING_BOLD_EXPECTATION,
     WARNING_TYPE_SIZE_EXPECTATION,
+    WARNING_TYPE_SIZE_TABLE,
 )
 from labelcheck.models import FieldResult, Status
 from labelcheck.normalize import extract_warning_prefix, normalize_warning_text, word_level_diff
@@ -46,8 +47,7 @@ def verify(
             extracted,
             EXACT_MATCH_CONFIDENCE,
             crop,
-            "Government warning wording matches the statutory text exactly after OCR-safe "
-            "normalization.",
+            "The warning wording matches the statutory text word for word.",
         )
 
     if _without_spaces(normalized_extracted) == _without_spaces(normalized_expected):
@@ -148,19 +148,29 @@ def verify_bold(*, crop: object | None = None) -> FieldResult:
         None,
         None,
         crop,
-        "Boldness is not recoverable from OCR text and was not evaluated.",
+        "This was not checked because boldness is not recoverable from the extracted "
+        "text; confirm bold type by eye using the crop.",
     )
 
 
 def verify_type_size(*, crop: object | None = None) -> FieldResult:
     """Stay honest because text alone cannot establish physical type size."""
 
+    small_tier, medium_tier, large_tier = WARNING_TYPE_SIZE_TABLE
+    small_ceiling, small_size, small_characters = small_tier
+    medium_ceiling, medium_size, medium_characters = medium_tier
+    _large_ceiling, large_size, large_characters = large_tier
     return FieldResult(
         Status.NOT_EVALUATED,
         WARNING_TYPE_SIZE_EXPECTATION,
         None,
         None,
         crop,
-        "Physical-size evidence is not available without image geometry and container "
-        "dimensions; type size was not evaluated.",
+        "This was not checked because the physical measurements needed to confirm type "
+        "size are not available from a photograph. For reference, 27 CFR 16.22(b) "
+        f"requires type at least {small_size} millimeter tall for containers up to "
+        f"{small_ceiling} mL, {medium_size} millimeters over {small_ceiling} mL up to "
+        f"{medium_ceiling} mL (3 L), and {large_size} millimeters above that, with at "
+        f"most {small_characters}, {medium_characters}, and {large_characters} "
+        "characters per inch respectively.",
     )

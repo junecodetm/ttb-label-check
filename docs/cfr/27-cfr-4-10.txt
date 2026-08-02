@@ -1,0 +1,20 @@
+# The FAA Act definition of "wine" — 27 CFR 4.10 "Meaning of terms." (excerpt)
+#
+# PROVENANCE ANCHOR for src/labelcheck/config.py::WINE_FDA_JURISDICTION_MIN_ABV.
+# tests/test_standard_of_fill_provenance.py pins the 7-percent floor against the text
+# below. Below 7% ABV a product is outside this definition, so TTB's Part 4 wine
+# labeling rules do not apply and FDA food-labeling rules govern instead.
+#
+# Retrieved: 2026-08-01
+# Source: eCFR versioner API, title-27 issue date 2026-07-30 —
+#   https://www.ecfr.gov/api/versioner/v1/full/2026-07-30/title-27.xml?part=4&section=4.10
+# (The eCFR HTML UI 302-redirects to a bot-interstitial and cannot be fetched
+# programmatically; the versioner API is the same body of text from the same publisher.)
+#
+# FORMAT: every line beginning with '#' is a comment. Unlike the other anchors in this
+# directory, § 4.10 is a long definitions section, so this file carries only the "Wine."
+# entry — verbatim and complete — plus the section source note.
+
+Wine. (1) Wine as defined in section 610 and section 617 of the Revenue Act of 1918 (26 U.S.C. 5381-5392), only if for nonindustrial use and containing not less than 7 percent and not more than 24 percent of alcohol by volume; and
+(2) Other alcoholic beverages not so defined, but made in the manner of wine, including sparkling and carbonated wine, wine made from condensed grape must, wine made from other agricultural products than the juice of sound, ripe grapes, imitation wine, compounds sold as wine, vermouth, cider, perry, and sake, only if for nonindustrial use and containing not less than 7 percent and not more than 24 percent of alcohol by volume.
+[T.D. ATF-48, 43 FR 13532, Mar. 31, 1978, as amended by T.D. ATF-49, 43 FR 19848, May 9, 1978; T.D. ATF-53, 43 FR 37675, Aug. 23, 1978; 44 FR 55838, Sept. 29, 1979; T.D. ATF-66, 45 FR 40544, June 13, 1980; T.D. ATF-94, 46 FR 55095, Nov. 6, 1981; T.D. ATF-299, 55 FR 24988, June 19, 1990; T.D. ATF-425, 65 FR 11891, Mar. 7, 2000; T.D. TTB-44, 71 FR 16921, Apr. 4, 2006; T.D. TTB-91, 76 FR 5476, Feb. 1, 2011; T.D. TTB-145, 81 FR 94196, Dec. 22, 2016; T.D. TTB-158, 85 FR 18721, Apr. 2, 2020; T.D. TTB-196, 89 FR 87935, Nov. 6, 2024]

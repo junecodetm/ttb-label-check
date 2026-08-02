@@ -55,7 +55,7 @@ def verify(
             extracted,
             EXACT_MATCH_CONFIDENCE,
             crop,
-            "Country of origin matches after cosmetic normalization.",
+            "Matches the application once case and punctuation are set aside.",
         )
     return FieldResult(
         Status.FAIL,

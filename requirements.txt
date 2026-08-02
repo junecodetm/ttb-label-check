@@ -1,5 +1,5 @@
-# Runtime dependencies. This file is what HuggingFace Spaces installs — keep dev
-# tooling out of it (see requirements-dev.txt).
+# Runtime dependencies. This file is what Streamlit Community Cloud installs — keep
+# dev tooling out of it (see requirements-dev.txt).
 #
 # Pins below were resolved and verified on macOS arm64 / CPython 3.11.15 on 2026-07-31:
 # the venv builds, every import resolves, and RapidOCR instantiates. Transitive deps

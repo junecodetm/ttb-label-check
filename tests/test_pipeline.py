@@ -9,6 +9,7 @@ from PIL import Image
 
 from labelcheck import preprocess as preprocess_module
 from labelcheck.config import MAX_IMAGE_PIXELS
+from labelcheck.extract import ExtractionState, FieldCandidate
 from labelcheck.models import FieldResult, LabelReport, Status, TextBlock
 from labelcheck.ocr import OcrEngine, OcrError, get_engine, warm
 from labelcheck.pipeline import verify
@@ -19,6 +20,7 @@ EXPECTED_REPORT_FIELDS = {
     "class_type",
     "alcohol_content",
     "net_contents",
+    "net_contents_standard_of_fill",
     "bottler",
     "origin_country",
     "government_warning",
@@ -49,6 +51,7 @@ def test_clean_control_fixture_verifies_against_matching_application(
         "class_type",
         "alcohol_content",
         "net_contents",
+        "net_contents_standard_of_fill",
         "bottler",
         "government_warning",
         "government_warning_prefix",
@@ -64,6 +67,47 @@ def test_clean_control_fixture_verifies_against_matching_application(
         "government_warning_bold",
         "government_warning_type_size",
     )
+
+
+def test_ambiguous_net_contents_reuses_review_evidence_for_standard_of_fill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crop = b"net-contents-crop"
+    missing = FieldCandidate(None, (), (), None, b"missing-crop", ExtractionState.MISSING)
+    candidates = {
+        field_name: missing
+        for field_name in (
+            "brand_name",
+            "class_type",
+            "alcohol_content",
+            "net_contents",
+            "bottler",
+            "origin_country",
+            "government_warning",
+        )
+    }
+    candidates["net_contents"] = FieldCandidate(
+        None,
+        (),
+        (),
+        None,
+        crop,
+        ExtractionState.AMBIGUOUS,
+        ("700 mL", "750 mL"),
+    )
+    monkeypatch.setattr("labelcheck.pipeline.preprocess.preprocess_image", lambda _data: object())
+    monkeypatch.setattr("labelcheck.pipeline.ocr.recognize", lambda _image: [])
+    monkeypatch.setattr(
+        "labelcheck.pipeline.extract_candidates",
+        lambda _blocks, _image: candidates,
+    )
+
+    report = verify(b"image", sample_application_record())
+
+    result = report.results["net_contents_standard_of_fill"]
+    assert result.status is Status.REVIEW
+    assert result.extracted == "700 mL | 750 mL"
+    assert result.crop is crop
 
 
 @pytest.mark.slow

@@ -94,6 +94,17 @@ def test_bold_and_type_size_are_explicitly_not_evaluated() -> None:
     assert "not available" in type_size.detail.lower()
 
 
+def test_type_size_detail_surfaces_the_cfr_reference_tiers() -> None:
+    result = warning.verify_type_size()
+
+    assert result.status is Status.NOT_EVALUATED
+    assert "16.22" in result.detail
+    assert "1 millimeter" in result.detail
+    assert "2 millimeters" in result.detail
+    assert "3 millimeters" in result.detail
+    assert all(str(limit) in result.detail for limit in (40, 25, 12))
+
+
 def test_warning_rule_has_no_fuzzy_or_casefold_fallback() -> None:
     source = inspect.getsource(warning).casefold()
 

@@ -59,6 +59,28 @@ def test_wine_above_14_percent_gets_the_narrower_band() -> None:
     assert result.status is Status.FAIL
 
 
+def test_wine_below_seven_percent_keeps_status_and_advises_fda() -> None:
+    result = verify("5% Alc./Vol.", "5% Alc./Vol.", beverage_class="wine")
+
+    assert result.status is Status.PASS
+    assert "FDA" in result.detail
+    assert "27 CFR 4.10" in result.detail
+
+
+def test_wine_below_seven_percent_review_still_advises_fda() -> None:
+    result = verify("5% Alc./Vol.", "not stated", beverage_class="wine")
+
+    assert result.status is Status.REVIEW
+    assert "FDA" in result.detail
+
+
+def test_wine_below_seven_percent_parse_error_still_advises_fda() -> None:
+    result = verify("5% Alc./Vol.", "ABV not stated", beverage_class="wine")
+
+    assert result.status is Status.REVIEW
+    assert "FDA" in result.detail
+
+
 def test_malt_beverage_below_half_a_percent_gets_no_tolerance() -> None:
     # 27 CFR 7.65 extends its 0.3-point tolerance only to malt beverages at
     # 0.5% ABV or more, which is where "non-alcoholic" claims sit.

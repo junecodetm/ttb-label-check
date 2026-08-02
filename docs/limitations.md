@@ -18,7 +18,7 @@ Jenny Park's requirement is that `GOVERNMENT WARNING:` appear in all caps **and 
 
 TTB sets minimum type sizes by container volume. From an image, type size can only be approximated as bounding-box height relative to image height. That approximation breaks down entirely without a known physical container size — the same label photographed close up and far away yields different numbers.
 
-**Trade-off taken:** type size is reported as `NOT_EVALUATED` rather than guessed from pixel height. It is never reported as `PASS` and never rendered green.
+**Trade-off taken:** type size is reported as `NOT_EVALUATED` rather than guessed from pixel height. It is never reported as `PASS` and never rendered green. Since 2026-08-01 the check's detail text does surface the 27 CFR 16.22(b) reference tiers (1 mm ≤ 237 mL, 2 mm up to 3 L, 3 mm above, with 40/25/12 characters-per-inch caps) so the agent knows what to verify by eye; the tiers are anchored in `docs/cfr/27-cfr-16-22.txt` and pinned by a provenance test.
 
 ---
 
@@ -120,6 +120,26 @@ segmentation before line grouping — worth doing before any COLA-fed deployment
 for a prototype.
 
 ---
+
+## Standards-of-fill check — scope decisions (added 2026-08-01)
+
+Net contents are now checked twice: once against the application value, and once for
+membership in the federally authorized container sizes (27 CFR 5.203 for spirits, 4.72 for
+wine, both as expanded by T.D. TTB-200; anchored in `docs/cfr/` and pinned by provenance
+tests). Decisions worth stating:
+
+- **Metric values compare exactly.** `701 mL` fails; no epsilon can absorb it, because the
+  regulation authorizes sizes, not neighborhoods. Only fl-oz-stated values get a tolerance
+  of half the one-decimal print step (~1.48 mL), so `25.4 fl oz` resolves to 750 mL.
+- **A nonstandard reading with an authorized application value is `REVIEW`, not `FAIL`** —
+  701-vs-750 is far more likely an OCR misread than a genuinely nonstandard bottle. The
+  detail names both values so the agent can decide from the crop.
+- **Malt beverages report `NOT_EVALUATED`.** 27 CFR Part 7 sets no standards of fill, so
+  there is no check to run, and an unearned green would violate the honesty invariant.
+- **Per-class mandatory-field sets and the wine sulfite declaration are not implemented.**
+  The application record has no sulfite field, and inventing one exceeds the brief. A wine
+  below 7% ABV does get an advisory note (FDA jurisdiction, 27 CFR 4.10 definition) on the
+  alcohol check, because that needs no new data.
 
 ## Deliberate scope boundaries
 

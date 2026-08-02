@@ -42,7 +42,7 @@ def verify(
             extracted,
             EXACT_MATCH_CONFIDENCE,
             crop,
-            "Bottler matches after cosmetic normalization.",
+            "Matches the application once case and punctuation are set aside.",
         )
 
     # Unlike brand and class/type, there is no fuzzy PASS band here. A bottler identity

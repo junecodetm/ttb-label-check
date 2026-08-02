@@ -9,7 +9,7 @@
    binding, not advisory. Read the rule **before** writing the module, not after.
 
 `docs/brief.md` is the source-of-truth brief; `README.md` is the deliverable written
-against it. `RESOURCES.md` is advisory only.
+against it.
 
 ## Hard boundaries — do not cross
 

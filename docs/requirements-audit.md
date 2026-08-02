@@ -31,6 +31,7 @@ limit. **Scoped out** — the brief excludes it.
 | Class/type designation | `rules/class_type.py` | Same |
 | Alcohol content | `rules/alcohol.py` | Numeric parse against the CFR tolerance for the beverage class; proof cross-checked as 2×ABV |
 | Net contents | `rules/net_contents.py` | Unit-normalized numeric compare (`750 mL` == `0.75 L`) |
+| Container size (standards of fill) | `rules/net_contents.py::verify_standard_of_fill` | Membership in the authorized 27 CFR 5.203 / 4.72 size lists (T.D. TTB-200, eCFR-verified and provenance-pinned); wine even-liters ≥ 4 L; malt exempt per Part 7 |
 | Name and address of bottler/producer | `rules/bottler.py` | Prefix-stripped identity + address compare |
 | Country of origin **for imports** | `rules/origin.py` | Conditional on the application record, not unconditional |
 | Government Health Warning | `rules/warning.py` | Normalized exact + separate uppercase sub-check + word-level diff |
@@ -39,6 +40,13 @@ The brief's own sample label (L87–91: `OLD TOM DISTILLERY` / `Kentucky Straigh
 Whiskey` / `45% Alc./Vol. (90 Proof)` / `750 mL`) is the shipped demo label and the
 control fixture. Its ABV/proof cross-check and the `750 mL` vs `0.75 L` case are both
 acceptance tests.
+
+## Implicit requirements from the evaluation criteria
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Error handling and empty states (bad file type, corrupt image, manifest mismatches) | **Met** | Typed decode errors surface as plain-language retry messages (`preprocess.py`, `app.py`); a corrupt image in a batch becomes one visible problem row, never a crashed run (`batch.py`); manifest↔image mismatches are reported in both directions; `.streamlit/config.toml` keeps tracebacks out of the browser |
+| Per-field confidence reporting, not one opaque verdict | **Met** | Every `FieldResult` carries its own status, confidence and crop; the UI renders each field separately and the CSV export preserves them |
 
 ## Deliverables (L97–102)
 

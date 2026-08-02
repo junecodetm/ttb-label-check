@@ -10,6 +10,10 @@ __pycache__/
 CLAUDE.local.md
 .claude/settings.local.json
 
+# Backstop only: the app needs no keys or env vars at all, but if a .env ever
+# appears locally it must not reach the public repo.
+.env
+
 # Nothing uploaded or processed should ever reach disk (see .claude/rules/testing.md).
 # These entries are a backstop, not the control — the control is the static test.
 uploads/
@@ -21,6 +25,9 @@ uploads/
 # tools/make_samples.py, contain nothing uploaded or sensitive, and the deployed
 # app's "Try a sample label" button cannot work unless they are committed.
 !samples/**
+# README screenshots of the app itself: generated from the shipped sample label,
+# nothing uploaded or sensitive.
+!docs/screenshot-*.png
 
 # Benchmark images generated on demand by tools/make_bench_images.py. Regenerable,
 # so they are never committed.
