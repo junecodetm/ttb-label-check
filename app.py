@@ -83,6 +83,16 @@ _STATIC_STYLES = """
         margin: 0.5rem 0;
         padding: 0.85rem 1rem;
     }
+    /* Streamlit's small icon buttons (e.g. the crop fullscreen controls) ship with no
+       visible focus ring, which strands keyboard users. 3px dark-blue on white clears
+       the 3:1 non-text contrast minimum. */
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    [role="button"]:focus-visible {
+        outline: 3px solid #1c63b7 !important;
+        outline-offset: 2px;
+    }
 </style>
 """
 

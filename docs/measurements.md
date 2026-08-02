@@ -41,6 +41,12 @@ OCR is ~95% of the budget. Model load is excluded because it happens once at sta
 the weights ship inside the `rapidocr-onnxruntime` wheel, so nothing is fetched at
 first request.
 
+**Re-measured 2026-08-01** after adding the standards-of-fill check (final-pass branch):
+end to end p50 **1.159s** / p95 **1.526s** on the same tool and machine under ordinary
+load; extraction + rules moved from 0.019s to **0.020s** p50 (~4 ms for the new check,
+noise-level). Field accuracy per variant is unchanged. The live deployed app measured the
+same day answers the sample label in **0.9s** and a 4-label batch in **3.5s** end to end.
+
 ## Field accuracy on synthetic variants
 
 Six fields per label, three timed runs each, so 18 field reads per variant.
