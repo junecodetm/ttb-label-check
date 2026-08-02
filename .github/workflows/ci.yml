@@ -1,0 +1,24 @@
+# Lint + fast test suite on every push and PR. The fast suite still needs the full
+# runtime dependency set installed: test_pipeline/test_batch import labelcheck.pipeline,
+# which imports the OCR wrapper, which imports rapidocr/cv2 at collection time — marker
+# deselection happens after import. uv's cache keeps the ~200MB install quick on re-runs.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv venv --python 3.11
+      - run: uv pip install -r requirements-dev.txt
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/pytest -m "not slow" -q

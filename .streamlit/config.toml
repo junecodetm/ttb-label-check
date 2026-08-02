@@ -12,5 +12,10 @@ secondaryBackgroundColor = "#EEF2F6"
 toolbarMode = "minimal"
 showErrorDetails = false
 
+[server]
+# A label photograph is a few MB; a phone HEIC tops out well under 25. Streamlit's
+# 200MB default would let one mis-drag exhaust the deploy's 2.7GB memory ceiling.
+maxUploadSize = 25
+
 [browser]
 gatherUsageStats = false
