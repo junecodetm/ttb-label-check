@@ -76,8 +76,14 @@ def test_punctuation_change_fails_and_diff_identifies_it() -> None:
     assert "replace expected [.] with extracted [!]" in result.detail
 
 
-def test_unlocated_warning_and_prefix_are_not_evaluated() -> None:
-    assert warning.verify(None).status is Status.NOT_EVALUATED
+def test_missing_warning_fails_as_a_missing_mandatory_element() -> None:
+    # A label with no locatable warning must not roll up to an overall PASS; the
+    # warning is the one field whose absence is itself the violation.
+    for extracted in (None, "", "   "):
+        result = warning.verify(extracted)
+        assert result.status is Status.FAIL
+        assert "mandatory" in result.detail
+
     assert warning.verify_prefix(None).status is Status.NOT_EVALUATED
 
 

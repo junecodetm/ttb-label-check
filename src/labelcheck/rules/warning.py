@@ -20,26 +20,12 @@ def verify(
 
     expected = GOVERNMENT_WARNING
     if extracted is None:
-        return FieldResult(
-            Status.NOT_EVALUATED,
-            expected,
-            extracted,
-            None,
-            crop,
-            "Government warning text was not located, so the check was not evaluated.",
-        )
+        return _missing_warning_result(expected, extracted, crop)
 
     normalized_extracted = normalize_warning_text(extracted)
     normalized_expected = normalize_warning_text(expected)
     if not normalized_extracted:
-        return FieldResult(
-            Status.NOT_EVALUATED,
-            expected,
-            extracted,
-            None,
-            crop,
-            "Government warning text was not located, so the check was not evaluated.",
-        )
+        return _missing_warning_result(expected, extracted, crop)
     if normalized_extracted == normalized_expected:
         return FieldResult(
             Status.PASS,
@@ -81,6 +67,26 @@ def verify(
         MISMATCH_CONFIDENCE,
         crop,
         f"Government warning deviation: {difference}.",
+    )
+
+
+def _missing_warning_result(
+    expected: str,
+    extracted: str | None,
+    crop: object | None,
+) -> FieldResult:
+    # Unlike the other fields, absence is itself the violation here: the warning is
+    # mandatory on every label, so "not located" must fail rather than sit out of the
+    # roll-up as NOT_EVALUATED and let a warning-less label report an overall PASS.
+    return FieldResult(
+        Status.FAIL,
+        expected,
+        extracted,
+        None,
+        crop,
+        "No government warning text was found on this label. The warning is a mandatory "
+        "element; if the label does carry it, this photograph was not readable enough — "
+        "request a clearer image.",
     )
 
 
