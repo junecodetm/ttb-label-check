@@ -18,6 +18,10 @@ Implement as a **normalized exact comparison**:
 
 Do not route this field through RapidFuzz. Not at a high threshold, not as a fallback.
 
+## Absence is a failure, not an unevaluated check
+
+The warning is mandatory on every label, so "not located" is itself the violation. When no warning text is found (or nothing survives normalization), the wording check returns `FAIL` with a plain-language explanation covering both readings — the label omits the warning, or the photograph was not readable enough and a clearer image is needed. It must not return `NOT_EVALUATED`: the overall roll-up ignores `NOT_EVALUATED`, and a warning-less label reporting an overall PASS is precisely the failure this tool exists to prevent. The prefix sub-check alone stays `NOT_EVALUATED` in that case; one `FAIL` carries the roll-up.
+
 ## The statutory text
 
 Lives in `config.py` as the single source of truth. Per 27 CFR 16.21:

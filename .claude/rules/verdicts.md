@@ -29,7 +29,7 @@ Every `FieldResult` carries all five of these. A result missing the crop is not 
 
 `NOT_EVALUATED` exists because of the bold and type-size checks (see `.claude/rules/government-warning.md`), but the invariant is general: **if a check did not actually run, or ran only as an acknowledged heuristic, it must not report `PASS` and must not render green.** An unevaluated check displaying as green is worse than an absent one — it tells an agent something was verified when nothing was.
 
-The same applies when OCR fails to locate a field at all. That is `NOT_EVALUATED` or `REVIEW`, never `PASS`, and never a silent omission from the report.
+The same applies when OCR fails to locate a field at all. That is `NOT_EVALUATED` or `REVIEW`, never `PASS`, and never a silent omission from the report. The government warning is the one exception, in the strict direction: it is mandatory on every label, so absence is itself the violation — a warning that cannot be located is a `FAIL`, not `NOT_EVALUATED`. The roll-up ignores `NOT_EVALUATED`, and a warning-less label must never report an overall PASS (see `.claude/rules/government-warning.md`).
 
 ## Never one global fuzzy score
 
