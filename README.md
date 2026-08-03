@@ -119,6 +119,7 @@ green.
 | Streamlit | Provides the single-label and batch user interface with little presentation-layer code. |
 | RapidOCR on ONNX Runtime | Runs OCR locally on CPU. Its model weights ship in the wheel, so startup never downloads a model. |
 | OpenCV | Decodes images, corrects orientation and perspective, improves contrast, and produces evidence crops. |
+| Pillow + pillow-heif | Applies EXIF orientation and opens iPhone HEIC photographs; HEIC support is loaded defensively so the app still starts without it. |
 | RapidFuzz | Scores fields where a near match should go to human review instead of failing automatically. |
 | pandas | Builds batch result tables and CSV exports. |
 
