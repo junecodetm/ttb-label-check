@@ -17,11 +17,12 @@ to find a bottle photograph first.
 ![The result view: each field shows the exact label crop it was read from, the application value, and a plain-language verdict](docs/screenshot-verdict.png)
 
 For batch mode, upload every image in [`samples/`](samples) together with
-[`samples/application-values.csv`](samples/application-values.csv). The four samples are
+[`samples/application-values.csv`](samples/application-values.csv). The seven samples are
 the brief's own acceptance cases: a compliant label, the title-case `Government Warning:`
-Jenny Park rejected, a photograph shot at an angle with glare, and Dave Morrison's
-`OLD TOM DISTILLERY` versus `Old Tom Distillery`. They are regenerated with
-`.venv/bin/python tools/make_samples.py`.
+Jenny Park rejected, a photograph shot at an angle with glare, Dave Morrison's
+`OLD TOM DISTILLERY` versus `Old Tom Distillery`, a label whose printed strength
+disagrees with the application, one with softened warning wording, and one with no
+warning at all. They are regenerated with `.venv/bin/python tools/make_samples.py`.
 
 ## Setup and run
 

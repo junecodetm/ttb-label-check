@@ -52,6 +52,23 @@ def main() -> None:
             make_label(),
             replace(record, brand_name="Old Tom Distillery"),
         ),
+        # The label prints a different strength than the application claims.
+        "abv-mismatch.png": (
+            make_label(record=replace(record, alcohol_content="40% Alc./Vol. (80 Proof)")),
+            record,
+        ),
+        # Jenny Park's evasion case: softened wording inside the warning.
+        "altered-warning.png": (
+            make_label(
+                warning_text=GOVERNMENT_WARNING.replace(
+                    "impairs your ability", "may impair your ability"
+                )
+            ),
+            record,
+        ),
+        # A mandatory element simply absent. A lone space keeps make_label from
+        # substituting the statutory text while rendering no warning at all.
+        "missing-warning.png": (make_label(warning_text=" "), record),
     }
 
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
