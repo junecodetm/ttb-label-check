@@ -11,7 +11,7 @@ limit. **Scoped out** — the brief excludes it.
 
 | # | Requirement (source) | Status | Where | Evidence |
 |---|---|---|---|---|
-| 1 | "If we can't get results back in about 5 seconds, nobody's going to use it" — Sarah Chen, L19 | **Met** | whole pipeline | Deployed app answers in **1.4s** end to end, measured in a browser; local p50 1.084s / p95 1.511s (`docs/measurements.md`) |
+| 1 | "If we can't get results back in about 5 seconds, nobody's going to use it" — Sarah Chen, L19 | **Met** | whole pipeline | Deployed app answers in **0.9s** end to end, measured in a browser; local p50 1.084s / p95 1.511s (`docs/measurements.md`) |
 | 2 | "handle batch uploads" of "200, 300 label applications at once" — Sarah Chen, L23 | **Met** | `src/labelcheck/batch.py` | 300 labels in **346s**, 0 errors, peak RSS 1110MB (`tools/bench_batch.py`); progress, time-remaining and stop-preserves-results in `app.py` |
 | 3 | "something my mother could figure out", 73-year-old benchmark, "half our team is over 50" — Sarah Chen, L21 | **Met** | `app.py` | One obvious path; 52px touch targets and no horizontal overflow at 360px, verified in-browser; **two clicks** from landing to a result via "Try a sample label" |
 | 4 | "our network blocks outbound traffic… firewall blocked connections to their ML endpoints" — Marcus Williams, L39 | **Met** | `src/labelcheck/ocr.py` | No network library imported anywhere in `src/labelcheck/`; RapidOCR ships 3 ONNX files (16.2 MB) inside the wheel, so nothing is fetched at run time |

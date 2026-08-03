@@ -40,6 +40,7 @@ Different fields fail in different ways, so a single similarity ratio across the
 | **Brand name**, **class/type** | Normalize (casefold, strip punctuation and apostrophes, collapse whitespace, drop legal suffixes like `LLC`/`INC`), then RapidFuzz `token_sort_ratio`. High → `PASS`, middle band → `REVIEW`, low → `FAIL`. |
 | **Alcohol content** | Parse numerically with a regex; compare against the TTB tolerance for the beverage class, never by string equality. Cross-check internal consistency: stated proof should equal 2 × ABV (`45% Alc./Vol. (90 Proof)`). |
 | **Net contents** | Unit-normalize (mL / L / fl oz) and compare as numbers. `750 mL` and `0.75 L` are the same value. |
+| **Bottler name/address** | Normalize with `normalize_bottler_text` (strip `BOTTLED BY`-style prefixes, casefold, collapse whitespace), then RapidFuzz `token_sort_ratio` with the same REVIEW band as brand. |
 | **Country of origin** | Required for imports only — conditional on the application record, not unconditional. |
 | **Government warning** | Normalized *exact* comparison. Never fuzzy. See `.claude/rules/government-warning.md`. |
 

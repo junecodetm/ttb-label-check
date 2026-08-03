@@ -89,7 +89,7 @@ src/labelcheck/
   extract.py                # TextBlock[] -> candidate field values
   normalize.py              # Casefold, punctuation stripping, unit and number normalization
   rules/                    # One module per field, each returning a FieldResult
-    brand.py  class_type.py  alcohol.py  net_contents.py  warning.py  origin.py
+    brand.py  class_type.py  alcohol.py  net_contents.py  bottler.py  warning.py  origin.py
   batch.py                  # Manifest parsing, worker-pool execution, progress reporting
   report.py                 # LabelReport[] -> pandas DataFrame -> CSV export
 tests/
